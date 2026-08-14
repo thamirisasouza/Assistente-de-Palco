@@ -17,50 +17,50 @@ export function History({ state, onReset }: HistoryProps) {
         <div className="inline-flex items-center justify-center p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl mb-4">
           <CheckCircle2 className="w-8 h-8" />
         </div>
-        <h1 className="text-3xl font-semibold tracking-tight text-white mb-2">Reunião Concluída</h1>
-        <p className="text-slate-400">Resumo pedagógico e histórico de oradores.</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white mb-2">Reunião Concluída</h1>
+        <p className="text-slate-500 dark:text-slate-400">Resumo pedagógico e histórico de oradores.</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-[#1E293B]/50 border border-slate-800 p-6 rounded-2xl">
-          <p className="text-sm text-slate-400 uppercase tracking-wider font-medium mb-1">Partes Registradas</p>
-          <p className="text-3xl font-bold text-white">{state.history.length}</p>
+        <div className="bg-white dark:bg-[#1E293B]/50 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl">
+          <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium mb-1">Partes Registradas</p>
+          <p className="text-3xl font-bold text-slate-900 dark:text-white">{state.history.length}</p>
         </div>
-        <div className="bg-[#1E293B]/50 border border-slate-800 p-6 rounded-2xl">
-          <p className="text-sm text-slate-400 uppercase tracking-wider font-medium mb-1">Saldo Final</p>
+        <div className="bg-white dark:bg-[#1E293B]/50 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl">
+          <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium mb-1">Saldo Final</p>
           <p className={cn(
             "text-3xl font-bold font-mono tracking-tight",
-            state.timeBalance > 15 ? "text-red-400" : state.timeBalance < -15 ? "text-emerald-400" : "text-white"
+            state.timeBalance > 15 ? "text-red-400" : state.timeBalance < -15 ? "text-emerald-400" : "text-slate-900 dark:text-white"
           )}>
             {state.timeBalance > 0 ? '+' : ''}{formatTimeHours(state.timeBalance)}
           </p>
         </div>
-        <div className="bg-[#1E293B]/50 border border-slate-800 p-6 rounded-2xl">
-          <p className="text-sm text-slate-400 uppercase tracking-wider font-medium mb-1">Status Geral</p>
-          <p className="text-xl font-medium text-white flex items-center gap-2 mt-2">
+        <div className="bg-white dark:bg-[#1E293B]/50 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl">
+          <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium mb-1">Status Geral</p>
+          <p className="text-xl font-medium text-slate-900 dark:text-white flex items-center gap-2 mt-2">
             {state.timeBalance > 60 ? (
               <><AlertCircle className="w-5 h-5 text-red-400" /> Atraso Significativo</>
             ) : state.timeBalance < -60 ? (
               <><TrendingDown className="w-5 h-5 text-emerald-400" /> Terminou Mais Cedo</>
             ) : (
-              <><CheckCircle2 className="w-5 h-5 text-slate-300" /> Dentro do Horário</>
+              <><CheckCircle2 className="w-5 h-5 text-slate-600 dark:text-slate-300" /> Dentro do Horário</>
             )}
           </p>
         </div>
       </div>
 
-      <div className="bg-[#0F172A] border border-slate-800 rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-800 bg-[#1E293B]/50 flex items-center gap-3">
-          <ClipboardList className="w-5 h-5 text-slate-400" />
-          <h3 className="font-semibold text-white">Relatório de Oradores</h3>
+      <div className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1E293B]/50 flex items-center gap-3">
+          <ClipboardList className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+          <h3 className="font-semibold text-slate-900 dark:text-white">Relatório de Oradores</h3>
         </div>
         <div className="divide-y divide-slate-800/50">
           {state.history.map((record, i) => (
-            <div key={i} className="p-4 sm:p-6 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center hover:bg-[#1E293B]/30 transition-colors">
+            <div key={i} className="p-4 sm:p-6 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center hover:bg-white dark:bg-[#1E293B]/30 transition-colors">
               <div>
-                <p className="font-medium text-white text-lg mb-1">{record.title}</p>
+                <p className="font-medium text-slate-900 dark:text-white text-lg mb-1">{record.title}</p>
                 {!record.hideSpeaker && (
-                  <p className="text-slate-400">
+                  <p className="text-slate-500 dark:text-slate-400">
                     {record.speaker || "Sem orador designado"}
                     {record.assistant && ` c/ ${record.assistant}`}
                   </p>
@@ -71,14 +71,14 @@ export function History({ state, onReset }: HistoryProps) {
                 <div className="flex flex-col sm:items-end flex-1 sm:flex-initial">
                   <span className="text-xs text-slate-500 uppercase tracking-wider">Tempo Utilizado</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-lg font-bold text-slate-200">{formatTimeHours(record.actualTime)}</span>
+                    <span className="font-mono text-lg font-bold text-slate-700 dark:text-slate-200">{formatTimeHours(record.actualTime)}</span>
                     <span className="text-sm text-slate-500 font-mono">/ {record.plannedTime}m</span>
                   </div>
                 </div>
                 
                 <span className={cn(
                   "px-2.5 py-1 text-xs font-medium uppercase tracking-wider rounded-full shrink-0",
-                  record.status === 'No tempo' && "bg-slate-800 text-slate-300 border border-slate-700",
+                  record.status === 'No tempo' && "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700",
                   record.status === 'Excedido' && "bg-red-950/30 text-red-400 border border-red-900/50",
                   record.status === 'Abaixo do tempo' && "bg-emerald-950/30 text-emerald-400 border border-emerald-900/50",
                 )}>
@@ -95,11 +95,11 @@ export function History({ state, onReset }: HistoryProps) {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#1E293B]/80 backdrop-blur-md border-t border-slate-800">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-[#1E293B]/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800">
         <div className="max-w-4xl mx-auto">
           <button 
             onClick={onReset}
-            className="w-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 font-bold text-lg py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg"
+            className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 font-bold text-lg py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg"
           >
             <RefreshCw className="w-5 h-5" />
             NOVA REUNIÃO
