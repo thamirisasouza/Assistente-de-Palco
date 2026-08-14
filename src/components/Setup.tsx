@@ -256,22 +256,22 @@ export function Setup({
 
         {activeTab === 'programacao' && (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-400">
-            {/* Banner RF10: Importar Semana da Apostila */}
+            {/* Banner: Importar Escala Mensal (PDF Padrão) */}
             <div className="bg-gradient-to-r from-[#295E9F]/10 via-sky-500/10 to-indigo-500/10 dark:from-[#295E9F]/20 dark:via-sky-500/20 dark:to-indigo-500/20 border border-[#295E9F]/30 rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#295E9F] text-white tracking-wider uppercase">
-                    Novo RF10
+                    Escala Mensal
                   </span>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                     <BookOpen className="w-4 h-4 text-[#295E9F] dark:text-[#4A6CA7]" />
-                    Importar Semana da Apostila
+                    Importar PDF da Programação do Mês
                   </h3>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-300">
                   {importedWeekLabel 
                     ? `Programação aplicada para: ${importedWeekLabel}` 
-                    : "Cole o texto da apostila do JW Library para preenchimento automático das partes e temas (100% offline)."}
+                    : "Importe o PDF da congregação para preencher automaticamente temas, oradores, leitores, ajudantes e cânticos."}
                 </p>
               </div>
 
@@ -281,7 +281,7 @@ export function Setup({
                 className="min-h-[44px] px-5 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-[#28384E] text-[#295E9F] dark:text-[#688EC9] border border-[#295E9F]/30 hover:border-[#295E9F] rounded-2xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4 text-[#295E9F] dark:text-[#4A6CA7]" />
-                {importedWeekLabel ? "Reimportar Semana" : "Importar Texto da Apostila"}
+                {importedWeekLabel ? "Reimportar / Trocar Semana" : "Importar Arquivo PDF (.pdf)"}
               </button>
             </div>
 
@@ -410,16 +410,37 @@ export function Setup({
         )}
       </div>
 
-      {/* Modal de Importação da Apostila (RF10) */}
+      {/* Modal de Importação Mensal de PDF */}
       <ImportApostilaModal
         isOpen={isImportModalOpen}
         currentParts={state.parts}
+        existingBrothers={settings.brothers}
         onClose={() => setIsImportModalOpen(false)}
-        onApply={(newParts, weekLabel) => {
+        onApplyWeek={(newParts, week, allBrothersFound, congregationName) => {
           onApplyAllParts(newParts);
-          if (weekLabel) {
-            setImportedWeekLabel(weekLabel);
+          setImportedWeekLabel(week.weekLabel);
+
+          // Atualiza dados da congregação e presidente
+          const updates: Partial<CongregationSettings> = {};
+          if (week.president) {
+            updates.presidentName = week.president;
           }
+          if (congregationName && congregationName.length > 3) {
+            updates.name = congregationName;
+          }
+          if (Object.keys(updates).length > 0) {
+            onUpdateSettings(updates);
+          }
+
+          // Auto-registra irmãos encontrados que ainda não estejam na lista
+          const existingNames = new Set(settings.brothers.map(b => b.name.toLowerCase().trim()));
+          allBrothersFound.forEach(brotherName => {
+            const clean = brotherName.trim();
+            if (clean && !existingNames.has(clean.toLowerCase())) {
+              onAddBrother(clean, 'Publicador');
+              existingNames.add(clean.toLowerCase());
+            }
+          });
         }}
       />
 

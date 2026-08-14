@@ -1,250 +1,581 @@
-import { MeetingPart } from '../types';
+import { MeetingPart, Brother } from '../types';
 
-export interface ParsedApostilaWeek {
-  weekLabel?: string;
-  bibleReading?: string;
+export interface ParsedMinistryPart {
+  title: string;
+  minutes: number;
+  speaker?: string;
+  assistant?: string;
+}
+
+export interface ParsedChristianLivingPart {
+  title: string;
+  minutes: number;
+  speaker?: string;
+}
+
+export interface ParsedWeekSchedule {
+  id: string;
+  weekLabel: string;
+  date: string;
+  bibleReading: string;
+  congregationName?: string;
+  president?: string;
+  openingPrayer?: string;
   openingSong?: string;
   treasuresTheme?: string;
-  spiritualGemsTheme?: string;
+  treasuresSpeaker?: string;
+  spiritualGemsSpeaker?: string;
+  bibleReadingSpeaker?: string;
   bibleReadingSection?: string;
-  ministryPart1?: { title: string; type?: string; lesson?: string };
-  ministryPart2?: { title: string; type?: string; lesson?: string };
-  ministryPart3?: { title: string; type?: string; lesson?: string };
+  ministryParts: ParsedMinistryPart[];
   middleSong?: string;
-  christianLivingPart1?: { title: string; minutes?: number };
-  christianLivingPart2?: { title: string; minutes?: number };
-  congregationBibleStudy?: { title: string; material?: string };
+  christianLivingParts: ParsedChristianLivingPart[];
+  congregationStudyConductor?: string;
+  congregationStudyReader?: string;
+  congregationStudyMaterial?: string;
   closingSong?: string;
+  closingPrayer?: string;
   rawText: string;
 }
 
+export interface MonthPdfParseResult {
+  congregationName?: string;
+  generationDate?: string;
+  weeks: ParsedWeekSchedule[];
+  allBrothersFound: string[];
+}
+
 /**
- * Parser 100% local e offline para texto colado manualmente da Apostila
- * Não faz nenhuma requisição de rede (em estrita conformidade com os Termos de Uso do jw.org).
+ * Limpa e normaliza espaços e quebras de linha
  */
-export function parseApostilaText(text: string): ParsedApostilaWeek {
-  const result: ParsedApostilaWeek = {
-    rawText: text
+function cleanStr(str?: string): string {
+  if (!str) return "";
+  return str.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Extrai nomes separados por barra: "Mércia / Jessica" => { speaker: "Mércia", assistant: "Jessica" }
+ */
+function parseSlashNames(text: string): { speaker: string; assistant?: string } {
+  const parts = text.split('/').map(s => cleanStr(s)).filter(Boolean);
+  if (parts.length >= 2) {
+    return {
+      speaker: parts[0],
+      assistant: parts[1]
+    };
+  }
+  return {
+    speaker: cleanStr(text)
+  };
+}
+
+/**
+ * Remove números ordinais no início de linha: "1. A importância..." => "A importância..."
+ */
+function stripLeadingNumber(text: string): string {
+  return text.replace(/^[\d.)\s-]+/, '').trim();
+}
+
+/**
+ * Parser especializado na formatação do PDF Mensal da Reunião do Meio de Semana
+ * Modelo: Jardim Rosana - Ferraz de Vasconcelos SP
+ */
+export function parseMonthlyPdfText(fullText: string): MonthPdfParseResult {
+  const result: MonthPdfParseResult = {
+    weeks: [],
+    allBrothersFound: []
   };
 
-  if (!text || text.trim().length === 0) {
+  if (!fullText || !fullText.trim()) {
     return result;
   }
 
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const brothersSet = new Set<string>();
 
-  // 1. Identificar data / semana e leitura da semana
-  for (const line of lines.slice(0, 8)) {
-    // Exemplo: "10-16 DE MARÇO", "1-7 DE ABRIL", "Semana de 12 de maio"
-    if (/\d+[-–]\d+\s+de\s+[a-zçãéíóú]+/i.test(line) || /semana\s+de/i.test(line)) {
-      result.weekLabel = line;
-    }
-    // Exemplo de leitura bíblica da semana: "SALMOS 1-10", "1 REIS 1-2", "MATEUS 1-3"
-    if (/^[1-3]?\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,15}\s+\d+([-–]\d+)?$/i.test(line) && !line.toLowerCase().includes('cântico')) {
-      result.bibleReading = line;
+  // 1. Detectar Nome da Congregação no cabeçalho
+  const headerMatch = fullText.match(/([^\n]+?)\s+(?:Reunião do meio de semana|Reuniao)/i);
+  if (headerMatch) {
+    result.congregationName = cleanStr(headerMatch[1].replace(/---\s*NOVA PÁGINA\s*---/g, ''));
+  }
+
+  // 2. Dividir o texto em blocos de semana
+  // Padrão de início de semana: "3 de agosto de 2026 | JEREMIAS 22-23" ou "10 de agosto de 2026"
+  const weekHeaderRegex = /(?:^|\n)(?:\d{2}\/\d{2}\/\d{4}[^\n]*\n)?(\d{1,2}\s+de\s+[a-zçãéíóúA-ZÇÃÉÍÓÚ]+\s+de\s+\d{4})\s*(?:\|\s*([^\n]+?))?(?=\s+Presidente|\s*\n)/gi;
+
+  const matches: { index: number; date: string; reading: string }[] = [];
+  let m: RegExpExecArray | null;
+
+  while ((m = weekHeaderRegex.exec(fullText)) !== null) {
+    matches.push({
+      index: m.index,
+      date: cleanStr(m[1]),
+      reading: cleanStr(m[2] || "")
+    });
+  }
+
+  // Se o regex estrito falhar, tenta dividir por linhas com data
+  if (matches.length === 0) {
+    const fallbackRegex = /(\d{1,2}\s+de\s+[a-zçãéíóúA-ZÇÃÉÍÓÚ]+(?:\s+de\s+\d{4})?)/gi;
+    while ((m = fallbackRegex.exec(fullText)) !== null) {
+      matches.push({
+        index: m.index,
+        date: cleanStr(m[1]),
+        reading: ""
+      });
     }
   }
 
-  // 2. Extrair Cânticos
-  const canticoMatches = text.match(/cântico\s+(\d+)/gi);
-  if (canticoMatches && canticoMatches.length > 0) {
-    result.openingSong = canticoMatches[0];
-    if (canticoMatches.length > 1) {
-      result.middleSong = canticoMatches[1];
-    }
-    if (canticoMatches.length > 2) {
-      result.closingSong = canticoMatches[canticoMatches.length - 1];
-    }
+  const weekBlocks: { date: string; reading: string; text: string }[] = [];
+
+  for (let i = 0; i < matches.length; i++) {
+    const current = matches[i];
+    const startIndex = current.index;
+    const endIndex = i + 1 < matches.length ? matches[i + 1].index : fullText.length;
+    const blockText = fullText.substring(startIndex, endIndex).trim();
+
+    weekBlocks.push({
+      date: current.date,
+      reading: current.reading,
+      text: blockText
+    });
   }
 
-  // 3. Extrair Tesouros da Palavra de Deus (Discurso 10 min)
-  // Padrão comum: "1. TEMA DO DISCURSO (10 min)" ou linha após "TESOUROS DA PALAVRA DE DEUS"
-  const treasuresMatch = text.match(/(?:TESOUROS DA PALAVRA DE DEUS|1\.\s+)([^\n(]+)(?:\((\d+)\s*min\))?/i);
-  if (treasuresMatch) {
-    const candidate = treasuresMatch[1].replace(/TESOUROS DA PALAVRA DE DEUS/i, '').trim();
-    if (candidate.length > 3) {
-      result.treasuresTheme = candidate;
+  // Se ainda não encontrou divisões, processa o texto todo como 1 semana
+  if (weekBlocks.length === 0) {
+    weekBlocks.push({
+      date: "Semana Atual",
+      reading: "",
+      text: fullText
+    });
+  }
+
+  // 3. Processar cada bloco de semana
+  weekBlocks.forEach((block, idx) => {
+    const weekText = block.text;
+    const lines = weekText.split('\n').map(l => cleanStr(l)).filter(Boolean);
+
+    const week: ParsedWeekSchedule = {
+      id: `week-${idx + 1}`,
+      weekLabel: block.reading ? `${block.date} | ${block.reading}` : block.date,
+      date: block.date,
+      bibleReading: block.reading,
+      congregationName: result.congregationName,
+      ministryParts: [],
+      christianLivingParts: [],
+      rawText: weekText
+    };
+
+    // Presidente
+    const presMatch = weekText.match(/Presidente\s+([^\n\r]+?)(?=\s+Cântico|\s+Oração|\s*\n)/i);
+    if (presMatch) {
+      week.president = cleanStr(presMatch[1]);
+      brothersSet.add(week.president);
     }
-  }
 
-  // Fallback ou busca por linha com "(10 min)"
-  const tenMinLines = lines.filter(l => /\(10\s*min\)/i.test(l));
-  if (tenMinLines.length > 0 && !result.treasuresTheme) {
-    result.treasuresTheme = tenMinLines[0].replace(/\(10\s*min\)/i, '').replace(/^[\d.)\s-]+/, '').trim();
-  }
-  if (tenMinLines.length > 1) {
-    result.spiritualGemsTheme = tenMinLines[1].replace(/\(10\s*min\)/i, '').replace(/^[\d.)\s-]+/, '').trim();
-  }
-
-  // 4. Leitura da Bíblia (4 min)
-  const bibleReadMatch = text.match(/leitura da b[íi]blia[:\s]*([^\n(]+)(?:\((\d+)\s*min\))?/i);
-  if (bibleReadMatch) {
-    result.bibleReadingSection = bibleReadMatch[1].trim();
-  } else {
-    const fourMinLines = lines.filter(l => /leitura da b[íi]blia/i.test(l) || (/\(4\s*min\)/i.test(l) && /leitura/i.test(l)));
-    if (fourMinLines.length > 0) {
-      result.bibleReadingSection = fourMinLines[0].replace(/\(4\s*min\)/i, '').replace(/^[\d.)\s-]+/, '').trim();
+    // Cântico Inicial e Oração
+    // Ex: "Cântico 40: Você já decidiu? Oração Dionisio"
+    const openingSongMatch = weekText.match(/(Cântico\s+\d+[^:\n]*:[^\n\r]+?)(?=\s+Oração|\s+Comentários|\s*\n)/i);
+    if (openingSongMatch) {
+      week.openingSong = cleanStr(openingSongMatch[1]);
+    } else {
+      const genericSong1 = weekText.match(/Cântico\s+\d+/i);
+      if (genericSong1) week.openingSong = cleanStr(genericSong1[0]);
     }
-  }
 
-  // 5. Faça Seu Melhor no Ministério (Partes de Estudante)
-  const ministryKeywords = [
-    'iniciar conversas', 'cultivar o interesse', 'fazer discípulos', 
-    'explicar suas crenças', 'discurso', 'primeira conversa', 
-    'revisita', 'estudo bíblico', 'vídeo', 'demonstração'
-  ];
-
-  const studentPartLines: string[] = [];
-  lines.forEach(l => {
-    if (/\((?:3|4|5)\s*min\)/i.test(l) && !/leitura da b[íi]blia/i.test(l) && !/comentários/i.test(l) && !/cântico/i.test(l)) {
-      studentPartLines.push(l);
+    // Oração inicial (geralmente na linha do cântico inicial ou logo após Presidente)
+    const openPrayMatch = weekText.match(/Cântico[^\n]+?Oração\s+([^\n\r]+?)(?=\s+Comentários|\s+TESOUROS|\s*\n)/i) ||
+                          weekText.match(/Oração\s+([A-ZÁÉÍÓÚÇ][a-záéíóúç]+(?:\s+[A-ZÁÉÍÓÚÇ][a-záéíóúç]+)*)/i);
+    if (openPrayMatch) {
+      week.openingPrayer = cleanStr(openPrayMatch[1]);
+      brothersSet.add(week.openingPrayer);
     }
+
+    // Seção TESOUROS DA PALAVRA DE DEUS
+    const treasuresIndex = weekText.search(/TESOUROS DA PALAVRA DE DEUS/i);
+    const ministryIndex = weekText.search(/FAÇA SEU MELHOR NO MINISTÉRIO/i);
+    const christianLivingIndex = weekText.search(/NOSSA VIDA CRISTÃ/i);
+
+    if (treasuresIndex !== -1) {
+      const treasuresSection = weekText.substring(
+        treasuresIndex, 
+        ministryIndex !== -1 ? ministryIndex : weekText.length
+      );
+      const tLines = treasuresSection.split('\n').map(l => cleanStr(l)).filter(Boolean);
+
+      for (const line of tLines) {
+        // Discurso 10 min: "1. A importância de ter bons pastores (10 min) Fabricio Gonçalves"
+        const discMatch = line.match(/(?:1\.\s*)?([^(]+)\(10\s*min\)\s*(.*)/i);
+        if (discMatch && !line.toLowerCase().includes('joias')) {
+          week.treasuresTheme = stripLeadingNumber(cleanStr(discMatch[1]));
+          if (discMatch[2]) {
+            week.treasuresSpeaker = cleanStr(discMatch[2]);
+            brothersSet.add(week.treasuresSpeaker);
+          }
+        }
+
+        // Joias 10 min: "2. Joias espirituais (10 min) Israel Rezende"
+        if (line.toLowerCase().includes('joias')) {
+          const gemsSpeakerMatch = line.match(/\(10\s*min\)\s*(.*)/i);
+          if (gemsSpeakerMatch && gemsSpeakerMatch[1]) {
+            week.spiritualGemsSpeaker = cleanStr(gemsSpeakerMatch[1]);
+            brothersSet.add(week.spiritualGemsSpeaker);
+          }
+        }
+
+        // Leitura da Bíblia 4 min: "3. Leitura da Bíblia (4 min) Raphael Alves"
+        if (line.toLowerCase().includes('leitura da bíblia') || line.toLowerCase().includes('leitura da biblia')) {
+          const bibleReadMatch = line.match(/\(4\s*min\)\s*(.*)/i);
+          if (bibleReadMatch && bibleReadMatch[1]) {
+            week.bibleReadingSpeaker = cleanStr(bibleReadMatch[1]);
+            brothersSet.add(week.bibleReadingSpeaker);
+          }
+          week.bibleReadingSection = stripLeadingNumber(line.replace(/\(4\s*min\).*/i, ''));
+        }
+      }
+    }
+
+    // Seção FAÇA SEU MELHOR NO MINISTÉRIO
+    if (ministryIndex !== -1) {
+      const ministrySection = weekText.substring(
+        ministryIndex, 
+        christianLivingIndex !== -1 ? christianLivingIndex : weekText.length
+      );
+      const mLines = ministrySection.split('\n').map(l => cleanStr(l)).filter(Boolean);
+
+      for (const line of mLines) {
+        // Padrão: "4. Iniciando conversas (4 min) Mércia / Jessica"
+        const partMatch = line.match(/(?:[4-6]\.\s*)?([^(]+)\((\d+)\s*min\)\s*(.*)/i);
+        if (partMatch) {
+          const title = stripLeadingNumber(cleanStr(partMatch[1]));
+          const minutes = parseInt(partMatch[2], 10) || 4;
+          const assignedText = cleanStr(partMatch[3] || "");
+
+          const names = parseSlashNames(assignedText);
+          if (names.speaker) brothersSet.add(names.speaker);
+          if (names.assistant) brothersSet.add(names.assistant);
+
+          week.ministryParts.push({
+            title,
+            minutes,
+            speaker: names.speaker,
+            assistant: names.assistant
+          });
+        }
+      }
+    }
+
+    // Seção NOSSA VIDA CRISTÃ
+    if (christianLivingIndex !== -1) {
+      const clSection = weekText.substring(christianLivingIndex);
+      const clLines = clSection.split('\n').map(l => cleanStr(l)).filter(Boolean);
+
+      // Cântico Intermediário: "Cântico 103: Os anciãos são um presente de Jeová"
+      const midSongMatch = clSection.match(/Cântico\s+(\d+[^:\n]*:[^\n\r]+)/i);
+      if (midSongMatch) {
+        week.middleSong = cleanStr(midSongMatch[0].split('\n')[0]);
+      }
+
+      // Procura partes de Vida Cristã (ex: 15 min, 10 min, 5 min) e Estudo Bíblico (30 min)
+      for (let i = 0; i < clLines.length; i++) {
+        const line = clLines[i];
+
+        // Estudo Bíblico de Congregação (30 min) Fabiano dos Santos / José Lopes
+        if (line.toLowerCase().includes('estudo bíblico de congregação') || line.toLowerCase().includes('estudo biblico')) {
+          const ebcMatch = line.match(/\(30\s*min\)\s*(.*)/i);
+          let assigned = "";
+          if (ebcMatch && ebcMatch[1]) {
+            assigned = ebcMatch[1];
+          } else if (i + 1 < clLines.length && !clLines[i + 1].toLowerCase().includes('comentários') && !clLines[i + 1].toLowerCase().includes('cântico')) {
+            assigned = clLines[i + 1];
+          }
+
+          const ebcNames = parseSlashNames(assigned);
+          week.congregationStudyConductor = ebcNames.speaker;
+          week.congregationStudyReader = ebcNames.assistant;
+          if (ebcNames.speaker) brothersSet.add(ebcNames.speaker);
+          if (ebcNames.assistant) brothersSet.add(ebcNames.assistant);
+        } 
+        // Outras partes de Vida Cristã com tempo (15 min, 10 min, 5 min)
+        else if (/\((\d+)\s*min\)/i.test(line) && !line.toLowerCase().includes('estudo') && !line.toLowerCase().includes('comentários')) {
+          const minMatch = line.match(/\((\d+)\s*min\)/i);
+          const minutes = minMatch ? parseInt(minMatch[1], 10) : 15;
+          const title = stripLeadingNumber(line.replace(/\(\d+\s*min\).*/i, ''));
+          
+          let speakerCandidate = line.replace(/.*?\(\d+\s*min\)\s*/i, '').trim();
+          
+          // Se o orador estiver na próxima linha
+          if (!speakerCandidate && i + 1 < clLines.length && !clLines[i + 1].toLowerCase().includes('cântico') && !clLines[i + 1].toLowerCase().includes('estudo')) {
+            speakerCandidate = clLines[i + 1];
+          }
+
+          if (speakerCandidate) {
+            brothersSet.add(speakerCandidate);
+          }
+
+          week.christianLivingParts.push({
+            title,
+            minutes,
+            speaker: cleanStr(speakerCandidate)
+          });
+        }
+      }
+
+      // Cântico Final e Oração: "Cântico 60: A mensagem de vida Oração João Junior"
+      const closeMatches = clSection.match(/Cântico\s+(\d+[^:\n]*:[^\n\r]+?)(?:\s+Oração\s+([^\n\r]+)|$)/i) ||
+                           clSection.match(/Cântico\s+(\d+)\s*:\s*([^\n]+)/i);
+      
+      const allCanticos = Array.from(clSection.matchAll(/Cântico\s+(\d+[^:\n]*:[^\n\r]+)/gi));
+      if (allCanticos.length > 1) {
+        const lastCanticoLine = allCanticos[allCanticos.length - 1][0];
+        const prayInLast = lastCanticoLine.match(/Oração\s+(.*)/i);
+        if (prayInLast) {
+          week.closingSong = cleanStr(lastCanticoLine.replace(/Oração\s+.*/i, ''));
+          week.closingPrayer = cleanStr(prayInLast[1]);
+        } else {
+          week.closingSong = cleanStr(lastCanticoLine);
+        }
+      }
+
+      // Oração final caso esteja em outra linha
+      const closePrayMatch = clSection.match(/Oração\s+([A-ZÁÉÍÓÚÇ][a-záéíóúç]+(?:\s+[A-ZÁÉÍÓÚÇ][a-záéíóúç]+)*)\s*$/m) ||
+                             clSection.match(/Oração\s+([^\n\r]+)/gi);
+      if (closePrayMatch && !week.closingPrayer) {
+        const lastPray = closePrayMatch[closePrayMatch.length - 1].replace(/Oração\s+/i, '');
+        week.closingPrayer = cleanStr(lastPray);
+      }
+      if (week.closingPrayer) {
+        brothersSet.add(week.closingPrayer);
+      }
+    }
+
+    result.weeks.push(week);
   });
 
-  if (studentPartLines.length >= 1) {
-    result.ministryPart1 = { title: studentPartLines[0].replace(/\(\d+\s*min\)/i, '').replace(/^[\d.)\s-]+/, '').trim() };
-  }
-  if (studentPartLines.length >= 2) {
-    result.ministryPart2 = { title: studentPartLines[1].replace(/\(\d+\s*min\)/i, '').replace(/^[\d.)\s-]+/, '').trim() };
-  }
-  if (studentPartLines.length >= 3) {
-    result.ministryPart3 = { title: studentPartLines[2].replace(/\(\d+\s*min\)/i, '').replace(/^[\d.)\s-]+/, '').trim() };
-  }
-
-  // 6. Nossa Vida Cristã & Estudo Bíblico de Congregação (30 min)
-  const cbsMatch = text.match(/estudo b[íi]blico de congrega[çc][ãa]o[:\s]*([^\n(]+)(?:\((\d+)\s*min\))?/i);
-  if (cbsMatch) {
-    result.congregationBibleStudy = {
-      title: "Estudo Bíblico de Congregação",
-      material: cbsMatch[1].trim()
-    };
-  } else {
-    const thirtyMinLine = lines.find(l => /estudo b[íi]blico/i.test(l) || /\(30\s*min\)/i.test(l));
-    if (thirtyMinLine) {
-      result.congregationBibleStudy = {
-        title: "Estudo Bíblico de Congregação",
-        material: thirtyMinLine.replace(/\(30\s*min\)/i, '').replace(/^[\d.)\s-]+/, '').trim()
-      };
-    }
-  }
-
-  // Nossa Vida Cristã partes (15 min ou 10 min)
-  const christianLivingLines = lines.filter(l => {
-    const isCL = /\((?:15|10|7|8|5)\s*min\)/i.test(l);
-    const notTreasures = !/tesouros/i.test(l) && !/joias/i.test(l);
-    const notEBC = !/estudo b[íi]blico de congrega[çc][ãa]o/i.test(l);
-    const notMinistry = !studentPartLines.includes(l);
-    const notIntro = !/comentários/i.test(l) && !/cântico/i.test(l);
-    return isCL && notTreasures && notEBC && notMinistry && notIntro;
-  });
-
-  if (christianLivingLines.length > 0) {
-    const matchMin = christianLivingLines[0].match(/\((\d+)\s*min\)/i);
-    result.christianLivingPart1 = {
-      title: christianLivingLines[0].replace(/\(\d+\s*min\)/i, '').replace(/^[\d.)\s-]+/, '').trim(),
-      minutes: matchMin ? parseInt(matchMin[1], 10) : 15
-    };
-  }
-
+  result.allBrothersFound = Array.from(brothersSet).filter(b => b && b.length > 2 && !b.toLowerCase().includes('cântico'));
   return result;
 }
 
 /**
- * Exemplo de texto padrão da apostila para testes rápidos offline
+ * Converte a semana analisada do PDF para a lista de MeetingPart do app
  */
-export const SAMPLE_APOSTILA_TEXT = `10-16 DE MARÇO
-SALMOS 19-21
+export function applyPdfWeekToMeetingParts(
+  currentParts: MeetingPart[], 
+  week: ParsedWeekSchedule
+): MeetingPart[] {
+  const parts = currentParts.map(p => ({ ...p }));
 
-Cântico 12 e oração
-Comentários iniciais (1 min)
-
-TESOUROS DA PALAVRA DE DEUS
-"A lei de Jeová é perfeita" (10 min)
-Encontre joias espirituais (10 min)
-Leitura da Bíblia: Salmo 19:1-14 (4 min)
-
-FAÇA SEU MELHOR NO MINISTÉRIO
-Iniciar conversas: Use o assunto do modelo para começar uma conversa (3 min)
-Cultivar o interesse: Mostre um vídeo de jw.org e deixe uma pergunta pendente (4 min)
-Fazer discípulos: Estudo bíblico usando a lição 12 do livro Seja Feliz (5 min)
-
-NOSSA VIDA CRISTÃ
-Cântico 85
-Como a Bíblia nos ajuda a tomar boas decisões (15 min)
-Estudo Bíblico de Congregação: Livro Seja Feliz para Sempre!, lição 38 pontos 1-3 (30 min)
-Comentários finais (3 min)
-Cântico 132 e oração`;
-
-/**
- * Converte o parsed result para o array de MeetingPart padrão do S-38-T
- */
-export function applyParsedToMeetingParts(currentParts: MeetingPart[], parsed: ParsedApostilaWeek): MeetingPart[] {
-  const updated = currentParts.map(p => ({ ...p }));
-
-  // Discurso 10 min
-  const discurso = updated.find(p => p.id === 'discurso');
-  if (discurso && parsed.treasuresTheme) {
-    discurso.title = `Tesouros: ${parsed.treasuresTheme}`;
-  }
-
-  // Joias 10 min
-  const joias = updated.find(p => p.id === 'joias');
-  if (joias && parsed.spiritualGemsTheme) {
-    joias.title = `Tesouros: ${parsed.spiritualGemsTheme}`;
-  }
-
-  // Leitura da Bíblia 4 min
-  const leitura = updated.find(p => p.id === 'leitura');
-  if (leitura && parsed.bibleReadingSection) {
-    leitura.title = `Leitura da Bíblia: ${parsed.bibleReadingSection}`;
-  }
-
-  // Partes de Ministério
-  const m1 = updated.find(p => p.id === 'ministerio1');
-  if (m1 && parsed.ministryPart1?.title) {
-    m1.title = `Ministério: ${parsed.ministryPart1.title}`;
-  }
-
-  const m2 = updated.find(p => p.id === 'ministerio2');
-  if (m2 && parsed.ministryPart2?.title) {
-    m2.title = `Ministério: ${parsed.ministryPart2.title}`;
-  }
-
-  const m3 = updated.find(p => p.id === 'ministerio3');
-  if (m3 && parsed.ministryPart3?.title) {
-    m3.title = `Ministério: ${parsed.ministryPart3.title}`;
-  }
-
-  // Cânticos
-  const cAbertura = updated.find(p => p.id === 'abertura');
-  if (cAbertura && parsed.openingSong) {
-    cAbertura.title = `${parsed.openingSong} e Oração Iniciais`;
-  }
-
-  const cMeio = updated.find(p => p.id === 'vida_cantico');
-  if (cMeio && parsed.middleSong) {
-    cMeio.title = `${parsed.middleSong} (Intermediário)`;
-  }
-
-  const cFim = updated.find(p => p.id === 'conclusao_cantico');
-  if (cFim && parsed.closingSong) {
-    cFim.title = `${parsed.closingSong} e Oração Finais`;
-  }
-
-  // Nossa Vida Cristã
-  const v1 = updated.find(p => p.id === 'vida1');
-  if (v1 && parsed.christianLivingPart1?.title) {
-    v1.title = `Vida Cristã: ${parsed.christianLivingPart1.title}`;
-    if (parsed.christianLivingPart1.minutes) {
-      v1.plannedTime = parsed.christianLivingPart1.minutes;
+  // 1. Cântico e Oração Iniciais
+  const cAbertura = parts.find(p => p.id === 'abertura');
+  if (cAbertura) {
+    if (week.openingSong) {
+      cAbertura.title = `${week.openingSong} & Oração Inicial`;
+    }
+    if (week.openingPrayer) {
+      cAbertura.speaker = week.openingPrayer;
     }
   }
 
-  // Estudo Bíblico de Congregação
-  const ebc = updated.find(p => p.id === 'estudo');
-  if (ebc && parsed.congregationBibleStudy?.material) {
-    ebc.title = `Estudo Bíblico: ${parsed.congregationBibleStudy.material}`;
+  // 2. Comentários Iniciais (Presidente)
+  const comentIniciais = parts.find(p => p.id === 'comentarios');
+  if (comentIniciais && week.president) {
+    comentIniciais.speaker = week.president;
   }
 
-  return updated;
+  // 3. Tesouros - Discurso 10 min
+  const discurso = parts.find(p => p.id === 'discurso');
+  if (discurso) {
+    if (week.treasuresTheme) {
+      discurso.title = `Tesouros: ${week.treasuresTheme}`;
+    }
+    if (week.treasuresSpeaker) {
+      discurso.speaker = week.treasuresSpeaker;
+    }
+  }
+
+  // 4. Tesouros - Joias Espirituais 10 min
+  const joias = parts.find(p => p.id === 'joias');
+  if (joias) {
+    if (week.spiritualGemsSpeaker) {
+      joias.speaker = week.spiritualGemsSpeaker;
+    }
+  }
+
+  // 5. Tesouros - Leitura da Bíblia 4 min
+  const leitura = parts.find(p => p.id === 'leitura');
+  if (leitura) {
+    if (week.bibleReadingSection) {
+      leitura.title = `Leitura da Bíblia: ${week.bibleReadingSection}`;
+    }
+    if (week.bibleReadingSpeaker) {
+      leitura.speaker = week.bibleReadingSpeaker;
+    }
+  }
+
+  // 6. Faça Seu Melhor no Ministério
+  const m1 = parts.find(p => p.id === 'ministerio1');
+  if (m1 && week.ministryParts[0]) {
+    m1.title = `Ministério: ${week.ministryParts[0].title}`;
+    m1.plannedTime = week.ministryParts[0].minutes || 4;
+    m1.speaker = week.ministryParts[0].speaker;
+    m1.assistant = week.ministryParts[0].assistant;
+  }
+
+  const m2 = parts.find(p => p.id === 'ministerio2');
+  if (m2 && week.ministryParts[1]) {
+    m2.title = `Ministério: ${week.ministryParts[1].title}`;
+    m2.plannedTime = week.ministryParts[1].minutes || 4;
+    m2.speaker = week.ministryParts[1].speaker;
+    m2.assistant = week.ministryParts[1].assistant;
+  }
+
+  const m3 = parts.find(p => p.id === 'ministerio3');
+  if (m3 && week.ministryParts[2]) {
+    m3.title = `Ministério: ${week.ministryParts[2].title}`;
+    m3.plannedTime = week.ministryParts[2].minutes || 4;
+    m3.speaker = week.ministryParts[2].speaker;
+    m3.assistant = week.ministryParts[2].assistant;
+  }
+
+  // 7. Cântico Intermediário
+  const cMeio = parts.find(p => p.id === 'vida_cantico');
+  if (cMeio && week.middleSong) {
+    cMeio.title = `${week.middleSong}`;
+  }
+
+  // 8. Nossa Vida Cristã
+  const v1 = parts.find(p => p.id === 'vida1');
+  if (v1 && week.christianLivingParts[0]) {
+    v1.title = `Vida Cristã: ${week.christianLivingParts[0].title}`;
+    v1.plannedTime = week.christianLivingParts[0].minutes || 15;
+    v1.speaker = week.christianLivingParts[0].speaker;
+  }
+
+  // 9. Estudo Bíblico de Congregação
+  const ebc = parts.find(p => p.id === 'estudo');
+  if (ebc) {
+    if (week.congregationStudyConductor) {
+      ebc.speaker = week.congregationStudyConductor;
+    }
+    if (week.congregationStudyReader) {
+      ebc.assistant = week.congregationStudyReader;
+    }
+    if (week.congregationStudyMaterial) {
+      ebc.title = `Estudo Bíblico: ${week.congregationStudyMaterial}`;
+    }
+  }
+
+  // 10. Comentários Finais (Presidente)
+  const comentFinais = parts.find(p => p.id === 'comentarios_finais');
+  if (comentFinais && week.president) {
+    comentFinais.speaker = week.president;
+  }
+
+  // 11. Cântico e Oração Finais
+  const cFim = parts.find(p => p.id === 'conclusao_cantico');
+  if (cFim) {
+    if (week.closingSong) {
+      cFim.title = `${week.closingSong} & Oração Final`;
+    }
+    if (week.closingPrayer) {
+      cFim.speaker = week.closingPrayer;
+    }
+  }
+
+  return parts;
 }
+
+/**
+ * Exemplo real padrão retirado exatamente do PDF mensal
+ */
+export const SAMPLE_MONTHLY_PDF_TEXT = `Jardim Rosana - Ferraz de Vasconcelos SP Reunião do meio de semana
+13/08/2026, 21:59:21
+3 de agosto de 2026 | JEREMIAS 22-23 Presidente José Carlos
+Cântico 40: Você já decidiu? Oração Dionisio
+Comentários iniciais
+TESOUROS DA PALAVRA DE DEUS
+1. A importância de ter bons pastores (10 min) Fabricio Gonçalves
+2. Joias espirituais (10 min) Israel Rezende
+3. Leitura da Bíblia (4 min) Raphael Alves
+FAÇA SEU MELHOR NO MINISTÉRIO
+4. Iniciando conversas (4 min) Mércia / Jessica
+5. Cultivando o interesse (4 min) Mércia Moraes / Marcia Melo
+6. Discurso (4 min) Leonardo Silva
+NOSSA VIDA CRISTÃ
+Cântico 103: Os anciãos são um presente de Jeová
+7. Uma História Escrita por Jeová— O Corpo Governante Unido com os Irmãos — Parte 1 (15 min) Alison Valença
+8. Estudo bíblico de congregação (30 min) Fabiano dos Santos / José Lopes
+Comentários finais
+Cântico 60: A mensagem de vida Oração João Junior
+
+10 de agosto de 2026 | JEREMIAS 24-25 Presidente Vandeir Moraes
+Cântico 124: Sempre leais Oração Rafael Oliveira
+Comentários iniciais
+TESOUROS DA PALAVRA DE DEUS
+1. Por que alguns “figos” eram bons e outros eram ruins? (10 min) Arnon Vinicius
+2. Joias espirituais (10 min) Emerson S. Machado
+3. Leitura da Bíblia (4 min) Fabio Jose
+FAÇA SEU MELHOR NO MINISTÉRIO
+4. Iniciando conversas (4 min) Gilvaneide dos Santos / Patricia Alves
+5. Cultivando o interesse (4 min) Luciana Santos / Terezinha P. Soares
+6. Fazendo discípulos (4 min) Alvina / Julia Oliveira
+NOSSA VIDA CRISTÃ
+Cântico 65: Confiantes, nós vamos continuar!
+7. Necessidades locais (15 min) Vandeir Moraes
+8. Estudo bíblico de congregação (30 min) Magno Lobo / Gustavo Valença
+Comentários finais
+Cântico 137: Mulheres fiéis Oração Marcelo Alves
+
+17 de agosto de 2026 | JEREMIAS 26-28 Presidente Alison Valença
+Cântico 77: Luz num mundo sombrio Oração Eliezer
+Comentários iniciais
+TESOUROS DA PALAVRA DE DEUS
+1. Não seja enganado por falsos profetas (10 min) Lucas Taveira
+2. Joias espirituais (10 min) Valdir Ferreira
+3. Leitura da Bíblia (4 min) Gerson José da Costa
+FAÇA SEU MELHOR NO MINISTÉRIO
+4. Iniciando conversas (3 min) Elaine Ferreira / Israelita
+5. Cultivando o interesse (4 min) Djanira / Maria do Carmo
+6. Fazendo discípulos (5 min) Alberto Correia / Itallo Silva
+NOSSA VIDA CRISTÃ
+Cântico 16: Jeová escolheu nosso Rei
+7. Necessidades locais (15 min) José Carlos
+8. Estudo bíblico de congregação (30 min) Vandeir Moraes / Leonardo Silva
+Comentários finais
+Cântico 71: Marchamos com Jeová Oração Valdir Ferreira
+
+24 de agosto de 2026 | JEREMIAS 29-30 Presidente Lucas Taveira
+Cântico 12: Nosso grandioso Deus, Jeová Oração Vandeir Moraes
+Comentários iniciais
+TESOUROS DA PALAVRA DE DEUS
+1. Jeová disciplina seus servos na medida certa (10 min) Valdemir Silva
+2. Joias espirituais (10 min) Arnon Vinicius
+3. Leitura da Bíblia (4 min) Dionisio
+FAÇA SEU MELHOR NO MINISTÉRIO
+4. Iniciando conversas (4 min) Eliane Silva / Maria da Graça
+5. Iniciando conversas (3 min) Lucidalva Santos / Eunice Silveira
+6. Discurso (5 min) Gustavo Valença
+NOSSA VIDA CRISTÃ
+Cântico 3: Jeová, minha força e esperança
+7. Jeová dá esperança a seus servos (10 min) Fabiano dos Santos
+8. Campanha especial em setembro (5 min) Edson De Souza
+9. Estudo bíblico de congregação (30 min) Jilmar Silva / Raphael Alves
+Comentários finais
+Cântico 156: Olhar com fé Oração Denis Nonis
+
+31 de agosto de 2026 | JEREMIAS 31 Presidente Fabiano dos Santos
+Cântico 27: A vitória dos filhos de Deus Oração Gustavo Valença
+Comentários iniciais
+TESOUROS DA PALAVRA DE DEUS
+1. “Farei . . . um novo pacto” (10 min) José Carlos
+2. Joias espirituais (10 min) Luciano Taveira
+3. Leitura da Bíblia (4 min) Victor Ramos
+FAÇA SEU MELHOR NO MINISTÉRIO
+4. Iniciando conversas (3 min) Cicera / Edna
+5. Iniciando conversas (4 min) Cleuza / Lorhany Alves
+6. Explicando suas crenças (5 min) Rafael Oliveira
+NOSSA VIDA CRISTÃ
+Cântico 67: “Pregue a palavra”
+7. Seja adaptável — Use o JW.ORG (15 min) Denis Nonis
+8. Estudo bíblico de congregação (30 min) Edson De Souza / Itallo Silva
+Comentários finais
+Cântico 132: Nós somos um Oração Magno Lobo`;
