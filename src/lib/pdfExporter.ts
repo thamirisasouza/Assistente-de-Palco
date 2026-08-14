@@ -62,8 +62,10 @@ export function exportMeetingToPdf(meeting: CompletedMeeting) {
   
   // Colunas perfeitamente alinhadas
   const maxTitleWidth = 100; // Coluna 1: Título e minutos planejados (15mm a 115mm)
-  const timeColumnX = 118;   // Coluna 2: Tempo Real executado (118mm)
-  const nameColumnX = 138;   // Coluna 3: Nome do Publicador / Designação (138mm a 195mm)
+  const nameColumnX = 118;   // Coluna 2: Nome do Publicador / Designação (118mm a 170mm)
+  const timeBoxX = 173;      // Coluna 3: Quadrado do Tempo Real (173mm a 193mm, após o nome do publicador)
+  const timeBoxWidth = 20;   // Largura do quadradinho do tempo
+  const timeBoxHeight = 4.1; // Altura do quadradinho do tempo
 
   // Tenta carregar o mês completo importado se existir
   let monthSchedule: MonthPdfParseResult | null = null;
@@ -136,28 +138,7 @@ export function exportMeetingToPdf(meeting: CompletedMeeting) {
     const lines = doc.splitTextToSize(itemText, maxTitleWidth);
     doc.text(lines[0], marginLeft, y);
 
-    // 2. Coluna do Tempo Real (Alinhado em timeColumnX, na frente do publicador)
-    if (actualSecs !== undefined && actualSecs > 0) {
-      const isOvertime = plannedMins !== undefined && plannedMins > 0 
-        ? actualSecs > (plannedMins * 60)
-        : false;
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-
-      if (isOvertime) {
-        // ULTRAPASSOU: VERMELHO
-        doc.setTextColor(220, 38, 38); // #DC2626 Vermelho vibrante
-      } else {
-        // NO TEMPO: Verde escuro ou Slate
-        doc.setTextColor(22, 101, 52); // #166534 Verde sóbrio
-      }
-
-      const timeFormatted = formatActualTimePdf(actualSecs);
-      doc.text(timeFormatted, timeColumnX, y);
-    }
-
-    // 3. Coluna do Publicador / Designação (nameColumnX)
+    // 2. Coluna do Publicador / Designação (nameColumnX = 118mm, antes do quadradinho do tempo)
     if (publisherName) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
@@ -167,9 +148,40 @@ export function exportMeetingToPdf(meeting: CompletedMeeting) {
         doc.setTextColor(71, 85, 105);
         doc.text("Oração", nameColumnX, y);
         doc.setTextColor(15, 23, 42);
-        doc.text(publisherName, nameColumnX + 16, y);
+        doc.text(publisherName, nameColumnX + 14, y);
       } else {
         doc.text(publisherName, nameColumnX, y);
+      }
+    }
+
+    // 3. Coluna do Tempo Real (Após o nome do publicador: Quadradinho destacado)
+    if (actualSecs !== undefined && actualSecs > 0) {
+      const isOvertime = plannedMins !== undefined && plannedMins > 0 
+        ? actualSecs > (plannedMins * 60)
+        : false;
+
+      const timeFormatted = formatActualTimePdf(actualSecs);
+
+      if (isOvertime) {
+        // ULTRAPASSOU: QUADRADINHO VERMELHO COM TEXTO BRANCO EM NEGRITO
+        doc.setFillColor(220, 38, 38); // #DC2626 Vermelho vibrante
+        doc.setDrawColor(185, 28, 28); // #B91C1C Borda vermelha escura
+        doc.roundedRect(timeBoxX, y - 3.2, timeBoxWidth, timeBoxHeight, 0.8, 0.8, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(255, 255, 255);
+        doc.text(timeFormatted, timeBoxX + (timeBoxWidth / 2), y - 0.2, { align: 'center' });
+      } else {
+        // NO TEMPO: Quadradinho sutil com texto verde escuro
+        doc.setFillColor(241, 245, 249); // Slate-100 neutro
+        doc.setDrawColor(203, 213, 225); // Slate-300
+        doc.roundedRect(timeBoxX, y - 3.2, timeBoxWidth, timeBoxHeight, 0.8, 0.8, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(22, 101, 52); // #166534 Verde sóbrio
+        doc.text(timeFormatted, timeBoxX + (timeBoxWidth / 2), y - 0.2, { align: 'center' });
       }
     }
 

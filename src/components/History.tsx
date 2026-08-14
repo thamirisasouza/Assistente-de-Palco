@@ -274,12 +274,12 @@ export function History({
                       </div>
 
                       <span className={cn(
-                        "px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full shrink-0 border",
+                        "px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-xl shrink-0 border flex items-center gap-1.5 font-mono",
                         p.status === 'No tempo' && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
-                        p.status === 'Excedido' && "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+                        p.status === 'Excedido' && "bg-red-500 text-white border-red-600 shadow-sm font-black",
                         p.status === 'Abaixo do tempo' && "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30",
                       )}>
-                        {p.status}
+                        {p.status === 'Excedido' ? `${formatTime(p.actualTime)} (Excedido)` : p.status}
                       </span>
                     </div>
                   </div>
