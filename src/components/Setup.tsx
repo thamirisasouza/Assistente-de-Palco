@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { MeetingState, MeetingPart, CongregationSettings, Role, Brother, WeekType, TOTAL_PLANNED_MEETING_MINUTES } from '../types';
-import { Play, Plus, Trash2, Clock, Users, Calendar, Building2, Edit2, X, Check, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Play, Plus, Trash2, Clock, Users, Calendar, Building2, Edit2, X, Check, FileText, CheckCircle2, AlertCircle, Sparkles, BookOpen } from 'lucide-react';
 import { cn, addMinutesToTime } from '../lib/utils';
+import { ImportApostilaModal } from './ImportApostilaModal';
 
 interface SetupProps {
   state: MeetingState;
   settings: CongregationSettings;
   archivedCount: number;
   onUpdatePart: (index: number, updates: Partial<MeetingPart>) => void;
+  onApplyAllParts: (newParts: MeetingPart[]) => void;
   onStart: () => void;
   onUpdateSettings: (updates: Partial<CongregationSettings>) => void;
   onUpdateBrother: (id: string, updates: Partial<Brother>) => void;
@@ -17,10 +19,12 @@ interface SetupProps {
 }
 
 export function Setup({ 
-  state, settings, archivedCount, onUpdatePart, onStart, 
+  state, settings, archivedCount, onUpdatePart, onApplyAllParts, onStart, 
   onUpdateSettings, onUpdateBrother, onAddBrother, onRemoveBrother, onViewArchive 
 }: SetupProps) {
   const [activeTab, setActiveTab] = useState<'programacao' | 'congregacao'>('programacao');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importedWeekLabel, setImportedWeekLabel] = useState<string | null>(null);
   const [newBrotherName, setNewBrotherName] = useState("");
   const [newBrotherRole, setNewBrotherRole] = useState<Role>("Publicador");
 
@@ -252,6 +256,35 @@ export function Setup({
 
         {activeTab === 'programacao' && (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-400">
+            {/* Banner RF10: Importar Semana da Apostila */}
+            <div className="bg-gradient-to-r from-[#295E9F]/10 via-sky-500/10 to-indigo-500/10 dark:from-[#295E9F]/20 dark:via-sky-500/20 dark:to-indigo-500/20 border border-[#295E9F]/30 rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#295E9F] text-white tracking-wider uppercase">
+                    Novo RF10
+                  </span>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-[#295E9F] dark:text-[#4A6CA7]" />
+                    Importar Semana da Apostila
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  {importedWeekLabel 
+                    ? `Programação aplicada para: ${importedWeekLabel}` 
+                    : "Cole o texto da apostila do JW Library para preenchimento automático das partes e temas (100% offline)."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(true)}
+                className="min-h-[44px] px-5 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-[#28384E] text-[#295E9F] dark:text-[#688EC9] border border-[#295E9F]/30 hover:border-[#295E9F] rounded-2xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-[#295E9F] dark:text-[#4A6CA7]" />
+                {importedWeekLabel ? "Reimportar Semana" : "Importar Texto da Apostila"}
+              </button>
+            </div>
+
             {/* Informações da Sessão (Presidente e Semana) */}
             <div className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -376,6 +409,19 @@ export function Setup({
           </div>
         )}
       </div>
+
+      {/* Modal de Importação da Apostila (RF10) */}
+      <ImportApostilaModal
+        isOpen={isImportModalOpen}
+        currentParts={state.parts}
+        onClose={() => setIsImportModalOpen(false)}
+        onApply={(newParts, weekLabel) => {
+          onApplyAllParts(newParts);
+          if (weekLabel) {
+            setImportedWeekLabel(weekLabel);
+          }
+        }}
+      />
 
       {/* Botão Primário Inteligente (Princípio 2: Altura ≥ 56px) */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-[#0F172A]/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 z-40">

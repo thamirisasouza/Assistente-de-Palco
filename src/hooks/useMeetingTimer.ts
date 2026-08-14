@@ -194,6 +194,13 @@ export function useMeetingTimer() {
     });
   };
 
+  const setAllParts = (newParts: MeetingPart[]) => {
+    setState(prev => ({
+      ...prev,
+      parts: newParts
+    }));
+  };
+
   const addPart = (index: number) => {
     setState(prev => {
       const newParts = [...prev.parts];
@@ -452,6 +459,7 @@ export function useMeetingTimer() {
     resumeSavedMeeting,
     discardSavedMeeting,
     updatePart,
+    setAllParts,
     addPart,
     removePart,
     startMeeting,

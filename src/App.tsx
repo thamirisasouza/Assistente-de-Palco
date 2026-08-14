@@ -85,6 +85,7 @@ export default function App() {
           settings={timerContext.settings}
           archivedCount={timerContext.archivedMeetings.length}
           onUpdatePart={timerContext.updatePart}
+          onApplyAllParts={timerContext.setAllParts}
           onStart={timerContext.startMeeting}
           onUpdateSettings={timerContext.updateSettings}
           onUpdateBrother={timerContext.updateBrother}
