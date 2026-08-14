@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { MeetingState, MeetingPart, TOTAL_PLANNED_MEETING_MINUTES } from '../types';
 import { formatTime, cn, getBalanceColorClass, formatBalanceDisplay } from '../lib/utils';
+import { getPartSection, SECTIONS, groupPartsBySection } from '../lib/sectionColors';
 import { 
   Play, 
   CheckCircle2, 
@@ -11,7 +12,14 @@ import {
   X,
   RotateCcw,
   Sparkles,
-  Info
+  Info,
+  Flag,
+  BookOpen,
+  Users,
+  HeartHandshake,
+  Music,
+  PauseCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -25,6 +33,7 @@ interface MeetingStageProps {
   onNextPhase: () => void;
   onSkipCounsel: () => void;
   onConcludeMeeting: () => void;
+  onPauseAndExit?: () => void;
   onEmergencyReset: () => void;
 }
 
@@ -38,6 +47,7 @@ export function MeetingStage({
   onNextPhase,
   onSkipCounsel,
   onConcludeMeeting,
+  onPauseAndExit,
   onEmergencyReset
 }: MeetingStageProps) {
   
@@ -53,7 +63,13 @@ export function MeetingStage({
   const isAllPartsDone = state.currentPartIndex >= state.parts.length;
   const currentPart = state.parts[state.currentPartIndex] || state.parts[state.parts.length - 1];
 
-  // Estimated end time calculation
+  // Seção ativa atual (com base nas cores e estrutura oficial do PDF S-38-T)
+  const currentSection = getPartSection(currentPart, state.currentPartIndex);
+
+  // Agrupamento de partes para a barra lateral
+  const sectionGroups = groupPartsBySection(state.parts);
+
+  // Cálculo de término previsto
   const remainingPlannedSeconds = state.parts
     .slice(state.currentPartIndex + (state.isCounselPhase ? 1 : 0))
     .reduce((sum, p) => sum + (p.plannedTime * 60) + (p.hasCounsel ? 60 : 0), 0);
@@ -64,10 +80,10 @@ export function MeetingStage({
   const isWarning = !isAllPartsDone && currentTimerSeconds <= 60 && currentTimerSeconds > 0;
   const isOvertime = !isAllPartsDone && currentTimerSeconds <= 0 && isTimerRunning;
 
-  // Standardized balance colors
+  // Cores padronizadas de saldo
   const balanceColors = getBalanceColorClass(state.timeBalance);
 
-  // SVG Ring Progress calculations
+  // Cálculo SVG do Anel de Progresso
   const radius = 24;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (Math.min(100, progressPercent) / 100) * circumference;
@@ -78,12 +94,15 @@ export function MeetingStage({
       isWarning && "ring-4 ring-inset ring-amber-500/40",
       isOvertime && "ring-4 ring-inset ring-red-500/50"
     )}>
-      {/* Top Bar (Estado sempre visível - RF04 / RF09) */}
-      <header className="h-20 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-8 bg-white dark:bg-[#1E293B] shadow-sm shrink-0 z-20">
-        <div className="flex items-center gap-4 md:gap-6">
+      
+      {/* 1. Header Top Bar (Relógio, Andamento, Saldo, Botão Finalizar e Botão Fechar Tela) */}
+      <header className="h-20 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-3 sm:px-6 md:px-8 bg-white dark:bg-[#1E293B] shadow-sm shrink-0 z-30">
+        
+        {/* Esquerda: Relógio & Término Previsto */}
+        <div className="flex items-center gap-3 sm:gap-6">
           <div className="flex flex-col">
             <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Relógio</span>
-            <span className="text-xl md:text-2xl font-mono font-bold text-slate-800 dark:text-slate-100">
+            <span className="text-lg sm:text-2xl font-mono font-bold text-slate-800 dark:text-slate-100">
               {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
@@ -98,9 +117,9 @@ export function MeetingStage({
           </div>
         </div>
 
-        {/* RF09: Anel de Progresso Central e Índice de Andamento */}
-        <div className="flex items-center gap-3 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
-          <div className="relative w-11 h-11 flex items-center justify-center">
+        {/* Centro: Anel de Progresso & Índice de Andamento */}
+        <div className="flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
+          <div className="relative w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 56 56">
               <circle
                 cx="28"
@@ -122,11 +141,11 @@ export function MeetingStage({
                 fill="transparent"
               />
             </svg>
-            <span className="absolute text-[11px] font-mono font-bold text-slate-800 dark:text-slate-100">
+            <span className="absolute text-[10px] sm:text-[11px] font-mono font-bold text-slate-800 dark:text-slate-100">
               {progressPercent}%
             </span>
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col hidden xs:flex">
             <span className="text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Andamento</span>
             <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">
               {Math.round(state.totalElapsedSeconds / 60)} / {TOTAL_PLANNED_MEETING_MINUTES} min
@@ -134,39 +153,86 @@ export function MeetingStage({
           </div>
         </div>
 
-        {/* Saldo de Tempo Padronizado (Âmbar = Atrasado, Azul = Adiantado) */}
-        <div className="flex items-center gap-4 text-right">
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">
-              Saldo da Reunião
+        {/* Direita: Saldo de Tempo + Botão Finalizar Reunião + Botão Fechar Tela */}
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+          <div className="flex flex-col items-end mr-1 sm:mr-2">
+            <span className="text-[9px] sm:text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">
+              Saldo
             </span>
             <span className={cn(
-              "text-xl md:text-2xl font-mono font-black tracking-tight",
+              "text-lg sm:text-2xl font-mono font-black tracking-tight",
               balanceColors.text
             )}>
               {formatBalanceDisplay(state.timeBalance)}
             </span>
           </div>
+
+          {/* Botão de Finalizar Reunião (Sempre acessível para o presidente) */}
+          <button 
+            onClick={() => setShowEndConfirmModal(true)} 
+            className="h-10 sm:h-11 px-2.5 sm:px-4 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/50 rounded-xl flex items-center gap-1.5 sm:gap-2 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+            title="Finalizar Reunião e Gerar Relatório"
+          >
+            <Flag className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="hidden sm:inline">Finalizar Reunião</span>
+            <span className="sm:hidden">Finalizar</span>
+          </button>
           
+          {/* Botão de Fechar Tela (Sair / Minimizar / Pausar) */}
           <button 
             onClick={() => setShowExitConfirmModal(true)} 
-            className="h-11 w-11 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-red-500 hover:bg-red-500/10 transition-colors"
-            title="Opções de Saída"
+            className="h-10 sm:h-11 px-2.5 sm:px-3.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center gap-1.5 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+            title="Fechar Tela / Opções de Saída"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+            <span className="hidden md:inline">Fechar Tela</span>
           </button>
         </div>
       </header>
 
-      {/* RF09: Barra de Progresso Segmentada por Parte (Sempre Visível) */}
-      <div className="bg-slate-100 dark:bg-[#1E293B]/60 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 py-2.5 shrink-0">
+      {/* 2. FAIXA COLORIDA DE SEÇÃO (Cores fiéis ao modelo do PDF da Apostila) */}
+      <motion.div 
+        layout
+        initial={false}
+        animate={{ backgroundColor: currentSection.color }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        className="w-full px-4 sm:px-6 md:px-8 py-2 text-white shadow-md flex items-center justify-between z-20 shrink-0 border-b border-black/10 transition-colors"
+        style={{ backgroundColor: currentSection.color }}
+      >
+        <div className="flex items-center gap-2.5 sm:gap-3.5 overflow-hidden">
+          <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-inner">
+            {currentSection.id === 'tesouros' && <BookOpen className="w-4 h-4 text-white" />}
+            {currentSection.id === 'ministerio' && <Users className="w-4 h-4 text-white" />}
+            {currentSection.id === 'vida' && <HeartHandshake className="w-4 h-4 text-white" />}
+            {currentSection.id === 'abertura' && <Music className="w-4 h-4 text-white" />}
+          </div>
+          <div className="flex items-baseline gap-2 truncate">
+            <span className="text-xs sm:text-sm md:text-base font-black uppercase tracking-wider text-white drop-shadow-sm truncate">
+              {currentSection.name}
+            </span>
+            <span className="hidden lg:inline-block text-[11px] text-white/85 font-medium truncate">
+              — {currentSection.description}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] sm:text-[11px] font-mono font-bold bg-black/25 px-2.5 py-0.5 rounded-full text-white backdrop-blur-sm border border-white/15 shadow-sm">
+            Parte {Math.min(state.parts.length, state.currentPartIndex + 1)} de {state.parts.length}
+          </span>
+        </div>
+      </motion.div>
+
+      {/* 3. Barra de Progresso Segmentada por Parte */}
+      <div className="bg-slate-100 dark:bg-[#1E293B]/60 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 py-2 shrink-0">
         <div className="flex items-center gap-1.5 w-full">
           {state.parts.map((p, idx) => {
             const recorded = state.history.find(h => h.id === p.id);
             const isCompleted = idx < state.currentPartIndex || (isAllPartsDone && idx < state.parts.length);
             const isCurrent = !isAllPartsDone && idx === state.currentPartIndex;
+            const partSec = getPartSection(p, idx);
 
-            let segmentColor = "bg-slate-300 dark:bg-slate-700 opacity-50"; // Pendente
+            let segmentColor = "bg-slate-300 dark:bg-slate-700 opacity-40"; // Pendente
             if (isCompleted) {
               if (recorded?.status === 'Excedido') {
                 segmentColor = "bg-amber-500"; // Atraso (Âmbar)
@@ -176,13 +242,14 @@ export function MeetingStage({
                 segmentColor = "bg-emerald-500"; // No tempo (Verde)
               }
             } else if (isCurrent) {
-              segmentColor = "bg-[#295E9F] dark:bg-[#4A6CA7] ring-2 ring-sky-400 ring-offset-1 dark:ring-offset-slate-900 animate-pulse";
+              segmentColor = "ring-2 ring-white ring-offset-1 dark:ring-offset-slate-900 animate-pulse";
             }
 
             return (
               <div 
                 key={p.id}
                 title={`${p.title} (${p.plannedTime}m)${recorded ? ` - ${recorded.status}` : isCurrent ? ' (Em andamento)' : ''}`}
+                style={isCurrent ? { backgroundColor: partSec.color } : {}}
                 className={cn(
                   "h-2.5 flex-1 rounded-full transition-all duration-300",
                   segmentColor
@@ -191,75 +258,95 @@ export function MeetingStage({
             );
           })}
         </div>
-        <div className="flex justify-between items-center mt-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-          <span>Parte {Math.min(state.parts.length, state.currentPartIndex + 1)} de {state.parts.length}</span>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> No tempo</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"></span> Atrasado</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-500"></span> Adiantado</span>
-          </div>
-        </div>
       </div>
 
-      {/* Main Content Grid */}
+      {/* 4. Main Content Grid */}
       <main className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-0 overflow-hidden">
         
-        {/* Left Sidebar: Agenda com Status em Tempo Real */}
-        <aside className="hidden md:flex col-span-3 border-r border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-[#0F172A]/40 flex-col overflow-hidden">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
-            <h2 className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">Agenda S-38-T</h2>
-            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+        {/* Left Sidebar: Agenda S-38-T com Seções Coloridas Idênticas ao PDF */}
+        <aside className="hidden md:flex col-span-3 lg:col-span-3 border-r border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-[#0F172A]/40 flex-col overflow-hidden">
+          <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-100/50 dark:bg-slate-800/30">
+            <h2 className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 font-bold flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-slate-500" /> Agenda S-38-T
+            </h2>
+            <span className="text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400">
               {state.parts.length} partes
             </span>
           </div>
           
-          <div className="flex-1 p-3 space-y-1.5 overflow-y-auto">
-            {state.parts.map((part, index) => {
-              const isPast = index < state.currentPartIndex;
-              const isPresent = index === state.currentPartIndex && !isAllPartsDone;
-              const historyItem = state.history.find(h => h.id === part.id);
-
+          <div className="flex-1 p-3 space-y-3 overflow-y-auto">
+            {sectionGroups.map((group) => {
+              const isGroupActive = group.parts.some(p => p.originalIndex === state.currentPartIndex);
+              
               return (
-                <div 
-                  key={part.id} 
-                  className={cn(
-                    "p-3 rounded-xl border transition-all duration-200 flex flex-col gap-1",
-                    isPresent && "bg-white dark:bg-[#1E293B] border-[#295E9F] dark:border-[#4A6CA7] shadow-md ring-1 ring-[#295E9F]/20",
-                    isPast && "bg-slate-100/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-90",
-                    !isPast && !isPresent && "border-transparent opacity-40 hover:opacity-60"
-                  )}
-                >
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-700 dark:text-slate-200 truncate pr-2">
-                      {part.title}
-                    </span>
-                    <span className="font-mono text-[11px] shrink-0 text-slate-500 dark:text-slate-400">
-                      {part.plannedTime}m
-                    </span>
+                <div key={group.section.id} className="space-y-1.5">
+                  {/* Faixa / Cabeçalho da Seção na Barra Lateral */}
+                  <div 
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider text-white flex items-center justify-between shadow-xs"
+                    style={{ backgroundColor: group.section.color }}
+                  >
+                    <span className="truncate">{group.section.shortName}</span>
+                    {isGroupActive && (
+                      <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                    )}
                   </div>
 
-                  {!part.hideSpeaker && (
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                      {part.speaker || "Sem orador"}
-                      {part.assistant && <span className="text-slate-400 dark:text-slate-500"> c/ {part.assistant}</span>}
-                    </div>
-                  )}
+                  {/* Partes da Seção */}
+                  <div className="space-y-1 pl-1">
+                    {group.parts.map(({ part, originalIndex }) => {
+                      const isPast = originalIndex < state.currentPartIndex;
+                      const isPresent = originalIndex === state.currentPartIndex && !isAllPartsDone;
+                      const historyItem = state.history.find(h => h.id === part.id);
 
-                  {isPast && historyItem && (
-                    <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-200/60 dark:border-slate-800/60 text-[10px] font-mono">
-                      <span className="text-slate-500 dark:text-slate-400">
-                        Real: {formatTime(historyItem.actualTime)}
-                      </span>
-                      <span className={cn(
-                        "font-bold uppercase",
-                        historyItem.status === 'Excedido' ? "text-amber-500 dark:text-amber-400" :
-                        historyItem.status === 'Abaixo do tempo' ? "text-sky-500 dark:text-sky-400" :
-                        "text-emerald-500 dark:text-emerald-400"
-                      )}>
-                        {historyItem.status}
-                      </span>
-                    </div>
-                  )}
+                      return (
+                        <div 
+                          key={part.id} 
+                          className={cn(
+                            "p-2.5 rounded-xl border transition-all duration-200 flex flex-col gap-0.5",
+                            isPresent && "bg-white dark:bg-[#1E293B] shadow-md ring-2",
+                            isPast && "bg-slate-100/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-90",
+                            !isPast && !isPresent && "border-transparent opacity-40 hover:opacity-60"
+                          )}
+                          style={isPresent ? { borderColor: group.section.color, ringColor: `${group.section.color}40` } : {}}
+                        >
+                          <div className="flex justify-between items-center text-xs">
+                            <span className={cn(
+                              "font-bold truncate pr-2",
+                              isPresent ? "text-slate-900 dark:text-white" : "text-slate-700 dark:text-slate-300"
+                            )}>
+                              {part.title}
+                            </span>
+                            <span className="font-mono text-[11px] shrink-0 text-slate-500 dark:text-slate-400">
+                              {part.plannedTime}m
+                            </span>
+                          </div>
+
+                          {!part.hideSpeaker && (
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                              {part.speaker || "Sem orador"}
+                              {part.assistant && <span className="text-slate-400 dark:text-slate-500"> c/ {part.assistant}</span>}
+                            </div>
+                          )}
+
+                          {isPast && historyItem && (
+                            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-200/60 dark:border-slate-800/60 text-[10px] font-mono">
+                              <span className="text-slate-500 dark:text-slate-400">
+                                Real: {formatTime(historyItem.actualTime)}
+                              </span>
+                              <span className={cn(
+                                "font-bold uppercase",
+                                historyItem.status === 'Excedido' ? "text-amber-500 dark:text-amber-400" :
+                                historyItem.status === 'Abaixo do tempo' ? "text-sky-500 dark:text-sky-400" :
+                                "text-emerald-500 dark:text-emerald-400"
+                              )}>
+                                {historyItem.status}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
@@ -268,7 +355,7 @@ export function MeetingStage({
 
         {/* Center Stage: Cronômetro Gigante & Informações de Palco */}
         <section className={cn(
-          "col-span-1 md:col-span-6 flex flex-col items-center justify-center p-6 md:p-8 relative overflow-hidden transition-colors",
+          "col-span-1 md:col-span-9 lg:col-span-6 flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 relative overflow-hidden transition-colors",
           isOvertime ? "bg-red-500/5" : isWarning ? "bg-amber-500/5" : "bg-transparent"
         )}>
           {isAllPartsDone ? (
@@ -282,7 +369,7 @@ export function MeetingStage({
                   Todas as Partes Concluídas!
                 </h1>
                 <p className="text-slate-600 dark:text-slate-300 text-sm md:text-base">
-                  A programação foi finalizada. Clique no botão abaixo para encerrar a reunião e gerar o relatório imutável para a congregação.
+                  A programação foi finalizada com sucesso. Clique no botão abaixo para encerrar a reunião e gerar o relatório oficial e PDF.
                 </p>
               </div>
               <div className="p-4 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm w-full grid grid-cols-2 gap-4 text-left">
@@ -311,29 +398,32 @@ export function MeetingStage({
                 transition={{ duration: 0.25 }}
                 className="flex flex-col items-center text-center w-full max-w-2xl z-10"
               >
-                <div className="text-center space-y-2 mb-6 md:mb-8">
-                  <div className={cn(
-                    "px-4 py-1.5 border rounded-full text-xs font-bold uppercase tracking-widest inline-flex items-center gap-2",
-                    state.isCounselPhase 
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" 
-                      : "bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] border-[#295E9F]/30"
-                  )}>
+                <div className="text-center space-y-2 mb-4 sm:mb-6 md:mb-8">
+                  {/* Badge de Identificação com a Cor Oficial da Seção */}
+                  <div 
+                    className="px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest inline-flex items-center gap-2 shadow-sm text-white transition-colors"
+                    style={{ backgroundColor: state.isCounselPhase ? '#059669' : currentSection.color }}
+                  >
                     {state.isCounselPhase ? (
                       <>
                         <Sparkles className="w-3.5 h-3.5" />
                         Fase de Elogio / Conselho (1 min)
                       </>
                     ) : (
-                      <>Parte {state.currentPartIndex + 1} de {state.parts.length}</>
+                      <>
+                        <span>{currentSection.shortName}</span>
+                        <span className="opacity-60">•</span>
+                        <span>Parte {state.currentPartIndex + 1} de {state.parts.length}</span>
+                      </>
                     )}
                   </div>
 
-                  <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+                  <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight px-2">
                     {state.isCounselPhase ? "Elogio e Conselho" : currentPart.title}
                   </h1>
 
                   {!currentPart.hideSpeaker && (
-                    <p className="text-lg md:text-2xl text-slate-600 dark:text-slate-300 font-medium">
+                    <p className="text-base sm:text-xl md:text-2xl text-slate-600 dark:text-slate-300 font-medium">
                       {currentPart.speaker || "Sem orador designado"}
                       {currentPart.assistant && (
                         <span className="text-slate-500 dark:text-slate-400 font-normal"> c/ {currentPart.assistant}</span>
@@ -343,9 +433,9 @@ export function MeetingStage({
                 </div>
 
                 {/* Mostrador Numérico Extra-Bold */}
-                <div className="relative my-2">
+                <div className="relative my-1 sm:my-2">
                   <div className={cn(
-                    "text-[80px] sm:text-[110px] md:text-[150px] font-mono leading-none tracking-tighter font-black flex items-baseline select-none transition-colors",
+                    "text-[72px] xs:text-[90px] sm:text-[120px] md:text-[145px] font-mono leading-none tracking-tighter font-black flex items-baseline justify-center select-none transition-colors",
                     isOvertime ? "text-red-500 animate-pulse" : isWarning ? "text-amber-500 dark:text-amber-400" : "text-slate-900 dark:text-white"
                   )}>
                     {formatTime(currentTimerSeconds)}
@@ -355,32 +445,32 @@ export function MeetingStage({
                   </div>
                 </div>
 
-                {/* Botões de Ajuste Manual de Toque Amplo (≥56px) */}
-                <div className="mt-6 flex gap-3 z-20">
+                {/* Botões de Ajuste Manual de Toque Amplo */}
+                <div className="mt-4 sm:mt-6 flex gap-2 sm:gap-3 z-20">
                   <button 
                     onClick={() => onAdjustTimer(-60)} 
-                    className="min-h-[48px] min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all"
+                    className="min-h-[44px] sm:min-h-[48px] min-w-[50px] sm:min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all cursor-pointer"
                     title="Diminuir 1 minuto"
                   >
                     -1m
                   </button>
                   <button 
                     onClick={() => onAdjustTimer(-15)} 
-                    className="min-h-[48px] min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all"
+                    className="min-h-[44px] sm:min-h-[48px] min-w-[50px] sm:min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all cursor-pointer"
                     title="Diminuir 15 segundos"
                   >
                     -15s
                   </button>
                   <button 
                     onClick={() => onAdjustTimer(15)} 
-                    className="min-h-[48px] min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all"
+                    className="min-h-[44px] sm:min-h-[48px] min-w-[50px] sm:min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all cursor-pointer"
                     title="Aumentar 15 segundos"
                   >
                     +15s
                   </button>
                   <button 
                     onClick={() => onAdjustTimer(60)} 
-                    className="min-h-[48px] min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all"
+                    className="min-h-[44px] sm:min-h-[48px] min-w-[50px] sm:min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all cursor-pointer"
                     title="Aumentar 1 minuto"
                   >
                     +1m
@@ -392,7 +482,7 @@ export function MeetingStage({
         </section>
 
         {/* Right Sidebar: Métricas e Próxima Transição */}
-        <aside className="hidden md:flex col-span-3 border-l border-slate-200 dark:border-slate-800 flex-col bg-white/50 dark:bg-[#0F172A]/40 p-5 space-y-6 justify-between">
+        <aside className="hidden lg:flex col-span-3 border-l border-slate-200 dark:border-slate-800 flex-col bg-white/50 dark:bg-[#0F172A]/40 p-5 space-y-6 justify-between">
           <div className="space-y-6">
             <div>
               <h3 className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-800 pb-2 mb-3">
@@ -425,7 +515,10 @@ export function MeetingStage({
                 </h3>
                 <div className="bg-white dark:bg-[#1E293B] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] rounded text-[11px] font-mono font-bold">
+                    <span 
+                      className="px-2 py-0.5 text-white rounded text-[11px] font-mono font-bold"
+                      style={{ backgroundColor: getPartSection(state.parts[state.currentPartIndex + 1], state.currentPartIndex + 1).color }}
+                    >
                       {state.parts[state.currentPartIndex + 1].plannedTime}m
                     </span>
                     <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">
@@ -455,16 +548,16 @@ export function MeetingStage({
         </aside>
       </main>
 
-      {/* RF03 & Princípio 2: Botão Primário Inteligente (Altura ≥ 56px, Maior Elemento da Tela) */}
+      {/* 5. Footer: Botão Primário Inteligente (Altura ≥ 56px, Maior Elemento da Tela) */}
       <footer className="h-24 md:h-28 bg-white dark:bg-[#1E293B] border-t border-slate-200 dark:border-slate-800 p-4 flex gap-4 shrink-0 z-30 shadow-lg">
         {isAllPartsDone ? (
-          /* Botão Final de Encerramento (RF08) */
+          /* Botão Final de Encerramento */
           <button 
             onClick={() => setShowEndConfirmModal(true)}
             className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-[#295E9F]/30 active:scale-[0.99] cursor-pointer"
           >
             <CheckCheck className="w-7 h-7" />
-            <span className="text-xl md:text-2xl font-black tracking-wider uppercase truncate">
+            <span className="text-lg sm:text-2xl font-black tracking-wider uppercase truncate">
               ENCERRAR REUNIÃO E GRAVAR HISTÓRICO
             </span>
           </button>
@@ -475,7 +568,7 @@ export function MeetingStage({
             className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-[#295E9F]/30 active:scale-[0.99] cursor-pointer"
           >
             <Play className="w-7 h-7 fill-current" />
-            <span className="text-xl md:text-2xl font-black tracking-wider uppercase truncate">
+            <span className="text-lg sm:text-2xl font-black tracking-wider uppercase truncate">
               INICIAR {state.isCounselPhase ? "CONSELHO" : "PARTE"}
             </span>
           </button>
@@ -487,7 +580,7 @@ export function MeetingStage({
               className="flex-[2] min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
             >
               <CheckCircle2 className="w-7 h-7 shrink-0" />
-              <span className="text-xl md:text-2xl font-black tracking-wider uppercase truncate">
+              <span className="text-lg sm:text-2xl font-black tracking-wider uppercase truncate">
                 CONCLUIR CONSELHO
               </span>
             </button>
@@ -508,92 +601,134 @@ export function MeetingStage({
             className="flex-1 min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
           >
             <CheckCircle2 className="w-7 h-7" />
-            <span className="text-xl md:text-2xl font-black tracking-wider uppercase truncate">
+            <span className="text-lg sm:text-2xl font-black tracking-wider uppercase truncate">
               CONCLUIR PARTE
             </span>
           </button>
         )}
       </footer>
 
-      {/* RF08: Modal de Confirmação Única de Encerramento */}
+      {/* MODAL 1: Confirmação de Finalizar Reunião */}
       {showEndConfirmModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] rounded-2xl flex items-center justify-center mx-auto">
-              <CheckCheck className="w-8 h-8" />
+            <div className="w-14 h-14 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/20 shadow-xs">
+              <Flag className="w-8 h-8" />
             </div>
             
             <div className="text-center space-y-2">
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                Encerrar Reunião?
+                Finalizar Reunião Agora?
               </h2>
               <p className="text-sm text-slate-600 dark:text-slate-300">
-                Esta ação finalizará a sessão ao vivo e gravará o histórico imutável com todos os tempos e oradores para consulta do Superintendente.
+                Esta ação encerrará a reunião, gravará o histórico imutável S-38-T das partes realizadas e abrirá o relatório com opção de exportar em PDF.
               </p>
             </div>
 
-            <div className="space-y-3 pt-2">
+            <div className="p-3.5 bg-slate-50 dark:bg-[#0F172A] rounded-2xl border border-slate-200 dark:border-slate-800 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Partes Concluídas:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  {state.history.length} de {state.parts.length}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tempo Decorrido:</span>
+                <span className="font-bold font-mono text-slate-800 dark:text-slate-200">
+                  {Math.round(state.totalElapsedSeconds / 60)} min
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Saldo Atual:</span>
+                <span className={cn("font-bold font-mono", balanceColors.text)}>
+                  {formatBalanceDisplay(state.timeBalance)}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-1">
               <button
                 onClick={() => {
                   setShowEndConfirmModal(false);
                   onConcludeMeeting();
                 }}
-                className="w-full min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-lg rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2"
+                className="w-full min-h-[52px] bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-base rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                Sim, Gravar e Exibir Resumo
+                <CheckCheck className="w-5 h-5" /> Sim, Gravar e Exibir Resumo
               </button>
               <button
                 onClick={() => setShowEndConfirmModal(false)}
-                className="w-full min-h-[48px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-2xl transition-all"
+                className="w-full min-h-[48px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-2xl transition-all cursor-pointer"
               >
-                Voltar ao Palco
+                Continuar Reunião
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de Saída / Encerramento de Emergência */}
+      {/* MODAL 2: Fechar Tela / Opções de Saída */}
       {showExitConfirmModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-8 h-8" />
+            <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl flex items-center justify-center mx-auto border border-slate-200 dark:border-slate-700">
+              <X className="w-8 h-8" />
             </div>
             
             <div className="text-center space-y-2">
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                Opções da Reunião
+                Fechar Tela da Reunião
               </h2>
               <p className="text-sm text-slate-600 dark:text-slate-300">
-                Você pode encerrar a reunião agora gravando o histórico das partes já feitas ou descartar esta sessão.
+                Escolha como deseja proceder com a sessão atual:
               </p>
             </div>
 
-            <div className="space-y-3 pt-2">
+            <div className="space-y-2.5 pt-1">
+              {/* Opção 1: Pausar e Voltar à Programação */}
+              {onPauseAndExit && (
+                <button
+                  onClick={() => {
+                    setShowExitConfirmModal(false);
+                    onPauseAndExit();
+                  }}
+                  className="w-full min-h-[50px] p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-sm rounded-2xl border border-slate-200 dark:border-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <PauseCircle className="w-4 h-4 text-sky-500" />
+                  Pausar e Voltar à Programação
+                </button>
+              )}
+
+              {/* Opção 2: Finalizar Reunião Agora */}
               <button
                 onClick={() => {
                   setShowExitConfirmModal(false);
                   onConcludeMeeting();
                 }}
-                className="w-full min-h-[52px] bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-base rounded-2xl shadow-md transition-all flex items-center justify-center gap-2"
+                className="w-full min-h-[50px] p-3 bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-sm rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                Encerrar e Gravar Progresso Atual
+                <Flag className="w-4 h-4" />
+                Finalizar Reunião e Gravar Relatório
               </button>
+
+              {/* Opção 3: Descartar Sessão */}
               <button
                 onClick={() => {
                   setShowExitConfirmModal(false);
                   onEmergencyReset();
                 }}
-                className="w-full min-h-[52px] bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 font-bold text-base rounded-2xl border border-red-500/30 transition-all flex items-center justify-center gap-2"
+                className="w-full min-h-[46px] p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 font-semibold text-xs rounded-2xl border border-red-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <RotateCcw className="w-4 h-4" /> Descartar Sessão e Voltar ao Início
+                <RotateCcw className="w-3.5 h-3.5" />
+                Descartar Sessão e Limpar
               </button>
+
+              {/* Opção 4: Cancelar / Continuar */}
               <button
                 onClick={() => setShowExitConfirmModal(false)}
-                className="w-full min-h-[48px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-2xl transition-all"
+                className="w-full min-h-[44px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-medium text-xs transition-all cursor-pointer pt-1"
               >
-                Continuar Reunião
+                Voltar para o Palco
               </button>
             </div>
           </div>

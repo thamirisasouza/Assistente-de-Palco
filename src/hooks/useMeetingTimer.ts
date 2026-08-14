@@ -23,13 +23,26 @@ export function useMeetingTimer() {
     const saved = localStorage.getItem(STORAGE_SETTINGS_KEY);
     if (saved) {
       try { 
-        const parsed = JSON.parse(saved); 
+        const parsed = JSON.parse(saved);
+        const rawLoadedBrothers: Brother[] = parsed.brothers?.length ? parsed.brothers : DEFAULT_BROTHERS;
+        
+        // Garante que cada irmão tenha um ID estritamente único
+        const seenIds = new Set<string>();
+        const sanitizedBrothers: Brother[] = rawLoadedBrothers.map((b, idx) => {
+          let brotherId = b.id;
+          if (!brotherId || seenIds.has(brotherId)) {
+            brotherId = `br-sanitized-${idx}-${Math.random().toString(36).substring(2, 7)}`;
+          }
+          seenIds.add(brotherId);
+          return { ...b, id: brotherId };
+        });
+
         return {
           name: parsed.name || "Minha Congregação",
           defaultTime: parsed.defaultTime || "19:30",
           presidentName: parsed.presidentName || "Presidente da Reunião",
           weekType: parsed.weekType || "Normal",
-          brothers: parsed.brothers?.length ? parsed.brothers : DEFAULT_BROTHERS
+          brothers: sanitizedBrothers
         };
       } catch (e) {}
     }
@@ -112,6 +125,7 @@ export function useMeetingTimer() {
       presidente: settings.presidentName,
       tipo_semana: settings.weekType,
       congregacao: settings.name,
+      importedWeekLabel: state.importedWeekLabel || settings.importedWeekLabel,
       parts: state.parts,
       currentPartIndex: state.currentPartIndex,
       isCounselPhase: state.isCounselPhase,
@@ -180,8 +194,33 @@ export function useMeetingTimer() {
     if (!name.trim()) return;
     setSettings(prev => {
       if (prev.brothers.some(b => b.name.toLowerCase() === name.toLowerCase())) return prev;
-      const newBrothers = [...prev.brothers, { id: `br-${Date.now()}`, name, role }];
+      const uniqueId = `br-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const newBrothers = [...prev.brothers, { id: uniqueId, name, role }];
       return { ...prev, brothers: newBrothers.sort((a, b) => a.name.localeCompare(b.name)) };
+    });
+  };
+
+  const addBrothersBatch = (names: string[], defaultRole: Role = "Publicador") => {
+    if (!names.length) return;
+    setSettings(prev => {
+      const existingMap = new Set(prev.brothers.map(b => b.name.toLowerCase().trim()));
+      const toAdd: Brother[] = [];
+      
+      names.forEach((rawName, index) => {
+        const cleanName = rawName.trim();
+        if (cleanName && !existingMap.has(cleanName.toLowerCase())) {
+          existingMap.add(cleanName.toLowerCase());
+          toAdd.push({
+            id: `br-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}`,
+            name: cleanName,
+            role: defaultRole
+          });
+        }
+      });
+
+      if (toAdd.length === 0) return prev;
+      const combined = [...prev.brothers, ...toAdd];
+      return { ...prev, brothers: combined.sort((a, b) => a.name.localeCompare(b.name)) };
     });
   };
 
@@ -386,12 +425,21 @@ export function useMeetingTimer() {
     const saldoFinalMinutos = Math.round(saldoFinalSegundos / 60);
     const indiceFinalPercentual = Math.min(100, Math.round((duracaoTotalMinutos / TOTAL_PLANNED_MEETING_MINUTES) * 100));
 
+    const day2 = String(now.getDate()).padStart(2, '0');
+    const month2 = String(now.getMonth() + 1).padStart(2, '0');
+    const year2 = String(now.getFullYear()).slice(-2);
+    const dataReuniaoCurta = `${day2}/${month2}/${year2}`;
+
+    const weekApostila = state.importedWeekLabel || settings.importedWeekLabel || `${now.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })} | ${settings.weekType.toUpperCase()}`;
+
     const completed: CompletedMeeting = {
       id: `meeting-${now.getTime()}`,
       status: 'encerrada',
       encerrada_em: now.toISOString(),
       iniciada_em: startTime.toISOString(),
       data_formatada: now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }),
+      semana_apostila: weekApostila,
+      data_reuniao_curta: dataReuniaoCurta,
       congregacao: settings.name,
       presidente: settings.presidentName,
       tipo_semana: settings.weekType,
@@ -427,6 +475,37 @@ export function useMeetingTimer() {
     setState(prev => ({
       ...prev,
       status: 'history_list'
+    }));
+  };
+
+  const pauseAndReturnToSetup = () => {
+    setIsTimerRunning(false);
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    // Salva a sessão ativa antes de sair da tela
+    const session: ActiveMeetingSession = {
+      status: 'running',
+      iniciada_em: state.startTime ? state.startTime.toISOString() : new Date().toISOString(),
+      presidente: settings.presidentName,
+      tipo_semana: settings.weekType,
+      congregacao: settings.name,
+      importedWeekLabel: state.importedWeekLabel || settings.importedWeekLabel,
+      parts: state.parts,
+      currentPartIndex: state.currentPartIndex,
+      isCounselPhase: state.isCounselPhase,
+      timeBalance: state.timeBalance,
+      currentTimerSeconds,
+      targetDurationSeconds,
+      isTimerRunning: false,
+      totalElapsedSeconds: state.totalElapsedSeconds,
+      records: state.history
+    };
+    localStorage.setItem(STORAGE_ACTIVE_SESSION_KEY, JSON.stringify(session));
+    setPendingSavedSession(session);
+
+    setState(prev => ({
+      ...prev,
+      status: 'setup'
     }));
   };
 
@@ -468,6 +547,7 @@ export function useMeetingTimer() {
     nextPhase,
     skipCounsel,
     concludeMeeting,
+    pauseAndReturnToSetup,
     resetToSetup,
     viewArchivedMeeting,
     viewArchiveList,
@@ -475,6 +555,7 @@ export function useMeetingTimer() {
     updateSettings,
     updateBrother,
     addBrother,
+    addBrothersBatch,
     removeBrother
   };
 }

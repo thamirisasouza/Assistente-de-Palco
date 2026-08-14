@@ -90,6 +90,7 @@ export default function App() {
           onUpdateSettings={timerContext.updateSettings}
           onUpdateBrother={timerContext.updateBrother}
           onAddBrother={timerContext.addBrother}
+          onAddBrothersBatch={timerContext.addBrothersBatch}
           onRemoveBrother={timerContext.removeBrother}
           onViewArchive={timerContext.viewArchiveList}
         />
@@ -107,6 +108,7 @@ export default function App() {
           onNextPhase={timerContext.nextPhase}
           onSkipCounsel={timerContext.skipCounsel}
           onConcludeMeeting={timerContext.concludeMeeting}
+          onPauseAndExit={timerContext.pauseAndReturnToSetup}
           onEmergencyReset={timerContext.resetToSetup}
         />
       )}

@@ -14,6 +14,7 @@ export interface CongregationSettings {
   presidentName: string;
   weekType: WeekType;
   brothers: Brother[];
+  importedWeekLabel?: string;
 }
 
 export interface MeetingPart {
@@ -49,6 +50,8 @@ export interface CompletedMeeting {
   encerrada_em: string;
   iniciada_em: string;
   data_formatada: string;
+  semana_apostila?: string;
+  data_reuniao_curta?: string;
   congregacao: string;
   presidente: string;
   tipo_semana: WeekType;
@@ -67,6 +70,7 @@ export interface ActiveMeetingSession {
   presidente: string;
   tipo_semana: WeekType;
   congregacao: string;
+  importedWeekLabel?: string;
   parts: MeetingPart[];
   currentPartIndex: number;
   isCounselPhase: boolean;
@@ -88,6 +92,7 @@ export interface MeetingState {
   totalElapsedSeconds: number;
   currentMeeting?: CompletedMeeting;
   history: PartRecord[];
+  importedWeekLabel?: string;
 }
 
 const rawBrothers = [

@@ -14,13 +14,14 @@ interface SetupProps {
   onUpdateSettings: (updates: Partial<CongregationSettings>) => void;
   onUpdateBrother: (id: string, updates: Partial<Brother>) => void;
   onAddBrother: (name: string, role: Role) => void;
+  onAddBrothersBatch: (names: string[], defaultRole?: Role) => void;
   onRemoveBrother: (id: string) => void;
   onViewArchive: () => void;
 }
 
 export function Setup({ 
   state, settings, archivedCount, onUpdatePart, onApplyAllParts, onStart, 
-  onUpdateSettings, onUpdateBrother, onAddBrother, onRemoveBrother, onViewArchive 
+  onUpdateSettings, onUpdateBrother, onAddBrother, onAddBrothersBatch, onRemoveBrother, onViewArchive 
 }: SetupProps) {
   const [activeTab, setActiveTab] = useState<'programacao' | 'congregacao'>('programacao');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -421,26 +422,19 @@ export function Setup({
           setImportedWeekLabel(week.weekLabel);
 
           // Atualiza dados da congregação e presidente
-          const updates: Partial<CongregationSettings> = {};
+          const updates: Partial<CongregationSettings> = {
+            importedWeekLabel: week.weekLabel
+          };
           if (week.president) {
             updates.presidentName = week.president;
           }
           if (congregationName && congregationName.length > 3) {
             updates.name = congregationName;
           }
-          if (Object.keys(updates).length > 0) {
-            onUpdateSettings(updates);
-          }
+          onUpdateSettings(updates);
 
           // Auto-registra irmãos encontrados que ainda não estejam na lista
-          const existingNames = new Set(settings.brothers.map(b => b.name.toLowerCase().trim()));
-          allBrothersFound.forEach(brotherName => {
-            const clean = brotherName.trim();
-            if (clean && !existingNames.has(clean.toLowerCase())) {
-              onAddBrother(clean, 'Publicador');
-              existingNames.add(clean.toLowerCase());
-            }
-          });
+          onAddBrothersBatch(allBrothersFound, 'Publicador');
         }}
       />
 

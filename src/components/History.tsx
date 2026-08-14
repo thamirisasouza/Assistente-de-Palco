@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CompletedMeeting, PartRecord, TOTAL_PLANNED_MEETING_MINUTES } from '../types';
 import { formatTime, formatTimeHours, getBalanceColorClass, formatBalanceDisplay, cn } from '../lib/utils';
+import { exportMeetingToPdf } from '../lib/pdfExporter';
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -18,7 +19,9 @@ import {
   FileText,
   TrendingDown,
   TrendingUp,
-  Award
+  Award,
+  FileDown,
+  Download
 } from 'lucide-react';
 
 interface HistoryProps {
@@ -37,6 +40,7 @@ export function History({
   onDeleteMeeting 
 }: HistoryProps) {
   const [copied, setCopied] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [activeTab, setActiveTab] = useState<'resumo' | 'grafico' | 'arquivo'>('resumo');
 
   // Selected meeting to display, fallback to first in archive
@@ -69,6 +73,19 @@ export function History({
   const partsUnderTime = activeMeeting.partes.filter(p => p.status === 'Abaixo do tempo').length;
 
   const balanceColors = getBalanceColorClass(activeMeeting.saldo_final_segundos);
+
+  // Exportar PDF formatado oficial da escala mensal com minutos reais
+  const handleExportPdf = (targetMeeting: CompletedMeeting = activeMeeting) => {
+    setDownloadingPdf(true);
+    try {
+      exportMeetingToPdf(targetMeeting);
+    } catch (e) {
+      console.error("Erro ao gerar PDF:", e);
+      alert("Houve um problema ao gerar o PDF. Tente novamente.");
+    } finally {
+      setTimeout(() => setDownloadingPdf(false), 1200);
+    }
+  };
 
   // Copy formatted report for WhatsApp
   const handleCopyReport = () => {
@@ -191,18 +208,30 @@ export function History({
         {/* TAB 1: RESUMO DETALHADO */}
         {activeTab === 'resumo' && (
           <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="flex justify-between items-center bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="flex flex-wrap gap-2 justify-between items-center bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">Registro Detalhado por Parte</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Tempos reais registrados para consulta do Superintendente (§26).</p>
               </div>
-              <button
-                onClick={handleCopyReport}
-                className="min-h-[44px] px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                {copied ? "Copiado!" : "Copiar Relatório WhatsApp"}
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleExportPdf(activeMeeting)}
+                  disabled={downloadingPdf}
+                  className="min-h-[44px] px-4 bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <FileDown className="w-4 h-4" />
+                  {downloadingPdf ? "Gerando PDF..." : "Exportar PDF (Modelo Escala)"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyReport}
+                  className="min-h-[44px] px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                  {copied ? "Copiado!" : "Copiar WhatsApp"}
+                </button>
+              </div>
             </div>
 
             <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
@@ -352,11 +381,20 @@ export function History({
         {/* TAB 3: ARQUIVO HISTÓRICO DE REUNIÕES */}
         {activeTab === 'arquivo' && (
           <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex justify-between items-center">
+            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap gap-2 justify-between items-center">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">Histórico de Reuniões Gravadas</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Reuniões arquivadas imutáveis salvas no dispositivo.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Reuniões arquivadas salvas no dispositivo. Baixe o PDF oficial com minutos reais a qualquer momento.</p>
               </div>
+              <button
+                type="button"
+                onClick={() => handleExportPdf(activeMeeting)}
+                disabled={downloadingPdf}
+                className="min-h-[40px] px-4 bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <FileDown className="w-4 h-4" />
+                {downloadingPdf ? "Gerando PDF..." : `Baixar PDF (${activeMeeting.data_formatada})`}
+              </button>
             </div>
 
             <div className="space-y-3">
@@ -398,6 +436,15 @@ export function History({
 
                       <div className="flex items-center gap-2">
                         <button
+                          type="button"
+                          onClick={() => handleExportPdf(m)}
+                          className="min-h-[40px] px-3 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5"
+                          title="Exportar PDF no formato da escala mensal com minutos reais"
+                        >
+                          <FileDown className="w-3.5 h-3.5" />
+                          PDF
+                        </button>
+                        <button
                           onClick={() => {
                             onSelectMeeting(m);
                             setActiveTab('resumo');
@@ -427,19 +474,31 @@ export function History({
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-[#1E293B]/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 z-40">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row gap-3">
           <button
+            type="button"
+            onClick={() => handleExportPdf(activeMeeting)}
+            disabled={downloadingPdf}
+            className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-base rounded-2xl shadow-lg shadow-[#295E9F]/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <FileDown className="w-5 h-5" />
+            {downloadingPdf ? "Gerando PDF..." : "Exportar PDF Oficial (Com Minutos Reais)"}
+          </button>
+
+          <button
+            type="button"
             onClick={handleCopyReport}
             className="flex-1 min-h-[56px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-base rounded-2xl border border-slate-200 dark:border-slate-700 transition-all flex items-center justify-center gap-2 shadow-sm"
           >
             {copied ? <Check className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
-            {copied ? "Relatório Copiado com Sucesso!" : "Copiar Relatório para Envio"}
+            {copied ? "Relatório Copiado!" : "Copiar WhatsApp"}
           </button>
           
           <button
+            type="button"
             onClick={onNewMeeting}
-            className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-base rounded-2xl shadow-lg shadow-[#295E9F]/30 transition-all flex items-center justify-center gap-2"
+            className="sm:w-auto px-6 min-h-[56px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold text-base rounded-2xl transition-all flex items-center justify-center gap-2"
           >
             <RefreshCw className="w-5 h-5" />
-            Configurar Nova Reunião
+            Nova Reunião
           </button>
         </div>
       </div>

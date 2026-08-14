@@ -112,6 +112,11 @@ export function ImportApostilaModal({
 
   const handleApplyCurrentWeek = () => {
     if (!selectedWeek || !parseResult) return;
+    try {
+      localStorage.setItem('s38t_imported_month_schedule', JSON.stringify(parseResult));
+    } catch (e) {
+      console.warn("Não foi possível salvar a programação mensal no storage:", e);
+    }
     const updatedParts = applyPdfWeekToMeetingParts(currentParts, selectedWeek);
     onApplyWeek(
       updatedParts, 
