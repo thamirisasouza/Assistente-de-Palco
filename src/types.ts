@@ -1,5 +1,7 @@
 export type Role = 'Ancião' | 'Servo Ministerial' | 'Publicador';
 
+export type WeekType = 'Normal' | 'Visita do SC' | 'Semana de Assembleia';
+
 export interface Brother {
   id: string;
   name: string;
@@ -9,6 +11,8 @@ export interface Brother {
 export interface CongregationSettings {
   name: string;
   defaultTime: string; // e.g. "19:30"
+  presidentName: string;
+  weekType: WeekType;
   brothers: Brother[];
 }
 
@@ -24,25 +28,66 @@ export interface MeetingPart {
   assistant?: string;
 }
 
-export interface MeetingState {
-  status: 'setup' | 'running' | 'history';
-  parts: MeetingPart[];
-  currentPartIndex: number;
-  isCounselPhase: boolean;
-  timeBalance: number; // in seconds (positive = behind schedule, negative = ahead)
-  startTime?: Date;
-  history: HistoryRecord[];
-}
+export type PartResultStatus = 'No tempo' | 'Excedido' | 'Abaixo do tempo';
 
-export interface HistoryRecord {
-  partId: string;
+export interface PartRecord {
+  id: string;
   title: string;
   speaker?: string;
   assistant?: string;
   hideSpeaker?: boolean;
   plannedTime: number; // in minutes
   actualTime: number; // in seconds
-  status: 'No tempo' | 'Excedido' | 'Abaixo do tempo';
+  status: PartResultStatus;
+  hasCounsel: boolean;
+  counselRecorded?: boolean;
+}
+
+export interface CompletedMeeting {
+  id: string;
+  status: 'encerrada';
+  encerrada_em: string;
+  iniciada_em: string;
+  data_formatada: string;
+  congregacao: string;
+  presidente: string;
+  tipo_semana: WeekType;
+  duracao_planejada_minutos: number;
+  duracao_real_minutos: number;
+  duracao_real_segundos: number;
+  saldo_final_segundos: number;
+  saldo_final_minutos: number;
+  indice_final_percentual: number;
+  partes: PartRecord[];
+}
+
+export interface ActiveMeetingSession {
+  status: 'running';
+  iniciada_em: string;
+  presidente: string;
+  tipo_semana: WeekType;
+  congregacao: string;
+  parts: MeetingPart[];
+  currentPartIndex: number;
+  isCounselPhase: boolean;
+  timeBalance: number; // in seconds (+ = atrasado/amber, - = adiantado/blue)
+  currentTimerSeconds: number;
+  targetDurationSeconds: number;
+  isTimerRunning: boolean;
+  totalElapsedSeconds: number;
+  records: PartRecord[];
+}
+
+export interface MeetingState {
+  status: 'setup' | 'running' | 'summary' | 'history_list';
+  parts: MeetingPart[];
+  currentPartIndex: number;
+  isCounselPhase: boolean;
+  timeBalance: number; // in seconds
+  startTime?: Date;
+  totalElapsedSeconds: number;
+  currentMeeting?: CompletedMeeting;
+  history: PartRecord[];
 }
 
 const rawBrothers = [
@@ -69,7 +114,7 @@ const rawBrothers = [
 export const DEFAULT_BROTHERS: Brother[] = rawBrothers.map((name, index) => ({
   id: `br-${index}`,
   name,
-  role: 'Publicador'
+  role: name.includes('Silva') || name.includes('Ferreira') || name.includes('Moraes') ? 'Ancião' : 'Publicador'
 }));
 
 export const DEFAULT_PARTS: MeetingPart[] = [
@@ -87,3 +132,5 @@ export const DEFAULT_PARTS: MeetingPart[] = [
   { id: "comentarios_finais", title: "Comentários Finais", plannedTime: 3, flexible: true, hasCounsel: false },
   { id: "conclusao_cantico", title: "Cântico e Oração Finais", plannedTime: 6, flexible: false, hasCounsel: false, hideSpeaker: true }
 ];
+
+export const TOTAL_PLANNED_MEETING_MINUTES = 105; // Padrão S-38-T (105 min / 1h 45m)

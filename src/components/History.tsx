@@ -1,108 +1,445 @@
-import React from 'react';
-import { MeetingState } from '../types';
-import { formatTimeHours } from '../lib/utils';
-import { RefreshCw, ClipboardList, CheckCircle2, AlertCircle, TrendingDown } from 'lucide-react';
-import { cn } from '../lib/utils';
+import React, { useState } from 'react';
+import { CompletedMeeting, PartRecord, TOTAL_PLANNED_MEETING_MINUTES } from '../types';
+import { formatTime, formatTimeHours, getBalanceColorClass, formatBalanceDisplay, cn } from '../lib/utils';
+import { 
+  CheckCircle2, 
+  AlertTriangle, 
+  Calendar, 
+  User, 
+  Building2, 
+  Share2, 
+  Copy, 
+  Check, 
+  RefreshCw, 
+  BarChart3, 
+  Clock, 
+  ArrowLeft, 
+  Trash2, 
+  FileText,
+  TrendingDown,
+  TrendingUp,
+  Award
+} from 'lucide-react';
 
 interface HistoryProps {
-  state: MeetingState;
-  onReset: () => void;
+  meeting?: CompletedMeeting;
+  archivedMeetings: CompletedMeeting[];
+  onNewMeeting: () => void;
+  onSelectMeeting: (m: CompletedMeeting) => void;
+  onDeleteMeeting: (id: string) => void;
 }
 
-export function History({ state, onReset }: HistoryProps) {
-  
+export function History({ 
+  meeting, 
+  archivedMeetings, 
+  onNewMeeting, 
+  onSelectMeeting, 
+  onDeleteMeeting 
+}: HistoryProps) {
+  const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState<'resumo' | 'grafico' | 'arquivo'>('resumo');
+
+  // Selected meeting to display, fallback to first in archive
+  const activeMeeting = meeting || archivedMeetings[0];
+
+  if (!activeMeeting) {
+    return (
+      <div className="max-w-3xl mx-auto p-6 py-20 text-center space-y-6">
+        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto text-slate-400">
+          <FileText className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Nenhuma Reunião Arquivada</h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">
+            Após concluir e encerrar a primeira reunião, o relatório imutável aparecerá aqui.
+          </p>
+        </div>
+        <button
+          onClick={onNewMeeting}
+          className="min-h-[56px] px-8 bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold rounded-2xl shadow-lg transition-all"
+        >
+          Iniciar Nova Reunião
+        </button>
+      </div>
+    );
+  }
+
+  const partsOnTime = activeMeeting.partes.filter(p => p.status === 'No tempo').length;
+  const partsExceeded = activeMeeting.partes.filter(p => p.status === 'Excedido').length;
+  const partsUnderTime = activeMeeting.partes.filter(p => p.status === 'Abaixo do tempo').length;
+
+  const balanceColors = getBalanceColorClass(activeMeeting.saldo_final_segundos);
+
+  // Copy formatted report for WhatsApp
+  const handleCopyReport = () => {
+    const lines = [
+      `📊 *RELATÓRIO DE REUNIÃO — NOSSA VIDA E MINISTÉRIO CRISTÃO*`,
+      `📅 *Data:* ${activeMeeting.data_formatada}`,
+      `🏛️ *Congregação:* ${activeMeeting.congregacao}`,
+      `👤 *Presidente:* ${activeMeeting.presidente}`,
+      `🏷️ *Semana:* ${activeMeeting.tipo_semana}`,
+      ``,
+      `⏱️ *Duração Real:* ${activeMeeting.duracao_real_minutos} min (Planejado: ${activeMeeting.duracao_planejada_minutos} min)`,
+      `⚖️ *Saldo Final:* ${formatBalanceDisplay(activeMeeting.saldo_final_segundos)}`,
+      `📈 *Partes no Tempo:* ${partsOnTime}/${activeMeeting.partes.length} (${Math.round((partsOnTime / Math.max(1, activeMeeting.partes.length)) * 100)}%)`,
+      ``,
+      `*DETALHAMENTO DAS PARTES:*`,
+      ...activeMeeting.partes.map((p, idx) => {
+        const speakerStr = p.hideSpeaker ? '' : ` — ${p.speaker || 'Sem orador'}${p.assistant ? ` c/ ${p.assistant}` : ''}`;
+        const timeStr = `${Math.round(p.actualTime / 60)}m (prev. ${p.plannedTime}m)`;
+        const statusEmoji = p.status === 'No tempo' ? '✅' : p.status === 'Excedido' ? '⚠️' : '🔵';
+        return `${idx + 1}. ${p.title}${speakerStr} | ${timeStr} ${statusEmoji}`;
+      }),
+      ``,
+      `_Gerado pelo Assistente de Palco S-38-T_`
+    ];
+
+    navigator.clipboard.writeText(lines.join('\n'));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
   return (
-    <div className="max-w-4xl mx-auto p-4 pb-32">
-      <header className="mb-8 pt-8">
-        <div className="inline-flex items-center justify-center p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl mb-4">
-          <CheckCircle2 className="w-8 h-8" />
-        </div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white mb-2">Reunião Concluída</h1>
-        <p className="text-slate-500 dark:text-slate-400">Resumo pedagógico e histórico de oradores.</p>
-      </header>
+    <div className="w-full min-h-screen bg-slate-50 dark:bg-[#0F172A] text-slate-900 dark:text-slate-100 flex flex-col items-center pb-36">
+      <div className="w-full max-w-4xl p-4 sm:p-6 md:py-10 space-y-6">
+        
+        {/* Header */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-xs rounded-full border border-emerald-500/20 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Reunião Encerrada — Histórico Imutável
+              </span>
+              <span className="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs rounded-full font-mono">
+                {activeMeeting.tipo_semana}
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+              Resumo & Relatório S-38-T
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {activeMeeting.data_formatada} • {activeMeeting.congregacao}
+            </p>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white dark:bg-[#1E293B]/50 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl">
-          <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium mb-1">Partes Registradas</p>
-          <p className="text-3xl font-bold text-slate-900 dark:text-white">{state.history.length}</p>
-        </div>
-        <div className="bg-white dark:bg-[#1E293B]/50 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl">
-          <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium mb-1">Saldo Final</p>
-          <p className={cn(
-            "text-3xl font-bold font-mono tracking-tight",
-            state.timeBalance > 15 ? "text-red-400" : state.timeBalance < -15 ? "text-emerald-400" : "text-slate-900 dark:text-white"
-          )}>
-            {state.timeBalance > 0 ? '+' : ''}{formatTimeHours(state.timeBalance)}
-          </p>
-        </div>
-        <div className="bg-white dark:bg-[#1E293B]/50 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl">
-          <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium mb-1">Status Geral</p>
-          <p className="text-xl font-medium text-slate-900 dark:text-white flex items-center gap-2 mt-2">
-            {state.timeBalance > 60 ? (
-              <><AlertCircle className="w-5 h-5 text-red-400" /> Atraso Significativo</>
-            ) : state.timeBalance < -60 ? (
-              <><TrendingDown className="w-5 h-5 text-emerald-400" /> Terminou Mais Cedo</>
-            ) : (
-              <><CheckCircle2 className="w-5 h-5 text-slate-600 dark:text-slate-300" /> Dentro do Horário</>
-            )}
-          </p>
-        </div>
-      </div>
+          {/* Tab buttons */}
+          <div className="flex bg-white dark:bg-[#1E293B] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shrink-0">
+            <button
+              onClick={() => setActiveTab('resumo')}
+              className={cn(
+                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+                activeTab === 'resumo' 
+                  ? "bg-[#295E9F] text-white shadow-sm" 
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              <FileText className="w-4 h-4" /> Resumo
+            </button>
+            <button
+              onClick={() => setActiveTab('grafico')}
+              className={cn(
+                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+                activeTab === 'grafico' 
+                  ? "bg-[#295E9F] text-white shadow-sm" 
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              <BarChart3 className="w-4 h-4" /> Gráfico
+            </button>
+            <button
+              onClick={() => setActiveTab('arquivo')}
+              className={cn(
+                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+                activeTab === 'arquivo' 
+                  ? "bg-[#295E9F] text-white shadow-sm" 
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              <Calendar className="w-4 h-4" /> Arquivo ({archivedMeetings.length})
+            </button>
+          </div>
+        </header>
 
-      <div className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1E293B]/50 flex items-center gap-3">
-          <ClipboardList className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-          <h3 className="font-semibold text-slate-900 dark:text-white">Relatório de Oradores</h3>
+        {/* Metadados da Reunião */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Presidente</span>
+            <p className="text-base font-bold text-slate-800 dark:text-slate-100 truncate mt-0.5">
+              {activeMeeting.presidente}
+            </p>
+          </div>
+          <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Duração Real</span>
+            <p className="text-xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-0.5">
+              {activeMeeting.duracao_real_minutos} min <span className="text-xs text-slate-400 font-normal">/ {activeMeeting.duracao_planejada_minutos}m</span>
+            </p>
+          </div>
+          <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Saldo Final</span>
+            <p className={cn("text-xl font-bold font-mono mt-0.5", balanceColors.text)}>
+              {formatBalanceDisplay(activeMeeting.saldo_final_segundos)}
+            </p>
+          </div>
+          <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Partes no Tempo</span>
+            <p className="text-xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-0.5">
+              {partsOnTime} <span className="text-xs text-slate-400 font-normal">de {activeMeeting.partes.length}</span>
+            </p>
+          </div>
         </div>
-        <div className="divide-y divide-slate-800/50">
-          {state.history.map((record, i) => (
-            <div key={i} className="p-4 sm:p-6 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center hover:bg-white dark:bg-[#1E293B]/30 transition-colors">
+
+        {/* TAB 1: RESUMO DETALHADO */}
+        {activeTab === 'resumo' && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="flex justify-between items-center bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
               <div>
-                <p className="font-medium text-slate-900 dark:text-white text-lg mb-1">{record.title}</p>
-                {!record.hideSpeaker && (
-                  <p className="text-slate-500 dark:text-slate-400">
-                    {record.speaker || "Sem orador designado"}
-                    {record.assistant && ` c/ ${record.assistant}`}
-                  </p>
-                )}
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Registro Detalhado por Parte</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Tempos reais registrados para consulta do Superintendente (§26).</p>
               </div>
-              
-              <div className="flex flex-row sm:flex-col items-center sm:items-end gap-4 sm:gap-1 w-full sm:w-auto">
-                <div className="flex flex-col sm:items-end flex-1 sm:flex-initial">
-                  <span className="text-xs text-slate-500 uppercase tracking-wider">Tempo Utilizado</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-lg font-bold text-slate-700 dark:text-slate-200">{formatTimeHours(record.actualTime)}</span>
-                    <span className="text-sm text-slate-500 font-mono">/ {record.plannedTime}m</span>
+              <button
+                onClick={handleCopyReport}
+                className="min-h-[44px] px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                {copied ? "Copiado!" : "Copiar Relatório WhatsApp"}
+              </button>
+            </div>
+
+            <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+              {activeMeeting.partes.map((p, index) => {
+                const diffSeconds = p.actualTime - (p.plannedTime * 60);
+                const isOver = diffSeconds > 15;
+                const isUnder = diffSeconds < -15;
+
+                return (
+                  <div key={index} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-mono text-xs flex items-center justify-center font-bold">
+                          {index + 1}
+                        </span>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
+                          {p.title}
+                        </h4>
+                      </div>
+                      {!p.hideSpeaker && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 pl-8">
+                          {p.speaker || "Sem orador designado"}
+                          {p.assistant && <span className="text-slate-400"> (c/ {p.assistant})</span>}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-4 pl-8 sm:pl-0">
+                      <div className="flex flex-col sm:items-end font-mono">
+                        <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                          {formatTime(p.actualTime)}
+                          <span className="text-xs text-slate-400 font-normal"> / {p.plannedTime}m</span>
+                        </div>
+                        <span className={cn(
+                          "text-[10px] font-bold",
+                          isOver ? "text-amber-500" : isUnder ? "text-sky-500" : "text-emerald-500"
+                        )}>
+                          {diffSeconds > 0 ? `+${formatTime(diffSeconds)}` : diffSeconds < 0 ? `-${formatTime(Math.abs(diffSeconds))}` : "00:00"}
+                        </span>
+                      </div>
+
+                      <span className={cn(
+                        "px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full shrink-0 border",
+                        p.status === 'No tempo' && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+                        p.status === 'Excedido' && "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+                        p.status === 'Abaixo do tempo' && "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30",
+                      )}>
+                        {p.status}
+                      </span>
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: GRÁFICO COMPARATIVO (RF08 - Planejado vs Real por Parte) */}
+        {activeTab === 'grafico' && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-[#1E293B] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-[#295E9F] dark:text-[#4A6CA7]" />
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Comparativo de Tempo: Planejado vs. Real
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Identifique rapidamente desvios e padrões para ajudar os oradores na gestão do tempo.
+              </p>
+              
+              <div className="flex items-center gap-6 pt-2 text-xs font-bold">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded bg-slate-300 dark:bg-slate-700"></div>
+                  <span className="text-slate-600 dark:text-slate-400">Tempo Planejado</span>
                 </div>
-                
-                <span className={cn(
-                  "px-2.5 py-1 text-xs font-medium uppercase tracking-wider rounded-full shrink-0",
-                  record.status === 'No tempo' && "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700",
-                  record.status === 'Excedido' && "bg-red-950/30 text-red-400 border border-red-900/50",
-                  record.status === 'Abaixo do tempo' && "bg-emerald-950/30 text-emerald-400 border border-emerald-900/50",
-                )}>
-                  {record.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded bg-[#295E9F] dark:bg-[#4A6CA7]"></div>
+                  <span className="text-slate-600 dark:text-slate-400">Tempo Real</span>
+                </div>
               </div>
             </div>
-          ))}
-          {state.history.length === 0 && (
-            <div className="p-8 text-center text-slate-500">
-              Nenhuma parte foi registrada.
+
+            <div className="bg-white dark:bg-[#1E293B] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+              {activeMeeting.partes.map((p, idx) => {
+                const plannedSeconds = p.plannedTime * 60;
+                const actualSeconds = p.actualTime;
+                const maxScaleSeconds = Math.max(plannedSeconds, actualSeconds, 1800); // at least 30m scale
+                
+                const plannedWidthPct = Math.min(100, (plannedSeconds / maxScaleSeconds) * 100);
+                const actualWidthPct = Math.min(100, (actualSeconds / maxScaleSeconds) * 100);
+                const diffSeconds = actualSeconds - plannedSeconds;
+
+                return (
+                  <div key={idx} className="space-y-1.5">
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="font-bold text-slate-800 dark:text-slate-200 truncate pr-2">
+                        {idx + 1}. {p.title}
+                      </span>
+                      <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
+                        {formatTime(actualSeconds)} <span className="text-[10px]">/ {p.plannedTime}m</span>
+                      </span>
+                    </div>
+
+                    {/* Dual comparative bar */}
+                    <div className="space-y-1">
+                      {/* Planejado */}
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-slate-300 dark:bg-slate-700 h-full rounded-full transition-all"
+                          style={{ width: `${plannedWidthPct}%` }}
+                          title={`Planejado: ${p.plannedTime} min`}
+                        />
+                      </div>
+
+                      {/* Real */}
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-3.5 rounded-full overflow-hidden">
+                        <div 
+                          className={cn(
+                            "h-full rounded-full transition-all flex items-center justify-end pr-1.5",
+                            p.status === 'Excedido' ? "bg-amber-500" :
+                            p.status === 'Abaixo do tempo' ? "bg-sky-500" :
+                            "bg-[#295E9F] dark:bg-[#4A6CA7]"
+                          )}
+                          style={{ width: `${actualWidthPct}%` }}
+                          title={`Real: ${formatTime(actualSeconds)}`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                      <span>{p.speaker || "Sem orador"}</span>
+                      <span className={cn(
+                        "font-bold",
+                        diffSeconds > 15 ? "text-amber-500" : diffSeconds < -15 ? "text-sky-500" : "text-emerald-500"
+                      )}>
+                        {diffSeconds > 0 ? `+${formatTime(diffSeconds)} de atraso` : diffSeconds < 0 ? `-${formatTime(Math.abs(diffSeconds))} adiantado` : "Exato no tempo"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* TAB 3: ARQUIVO HISTÓRICO DE REUNIÕES */}
+        {activeTab === 'arquivo' && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Histórico de Reuniões Gravadas</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Reuniões arquivadas imutáveis salvas no dispositivo.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {archivedMeetings.map((m) => {
+                const isSelected = m.id === activeMeeting.id;
+                const mBalanceColors = getBalanceColorClass(m.saldo_final_segundos);
+
+                return (
+                  <div 
+                    key={m.id}
+                    className={cn(
+                      "bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm",
+                      isSelected ? "border-[#295E9F] dark:border-[#4A6CA7] ring-2 ring-[#295E9F]/20" : "border-slate-200 dark:border-slate-800 hover:border-slate-300"
+                    )}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-mono font-bold">
+                          {m.tipo_semana}
+                        </span>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-base">
+                          {m.data_formatada}
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Presidente: <span className="font-semibold text-slate-700 dark:text-slate-300">{m.presidente}</span> • {m.congregacao}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-4">
+                      <div className="text-right font-mono">
+                        <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                          {m.duracao_real_minutos} min
+                        </div>
+                        <div className={cn("text-xs font-bold", mBalanceColors.text)}>
+                          {formatBalanceDisplay(m.saldo_final_segundos)}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            onSelectMeeting(m);
+                            setActiveTab('resumo');
+                          }}
+                          className="min-h-[40px] px-3.5 bg-slate-100 dark:bg-slate-800 hover:bg-[#295E9F] hover:text-white text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors"
+                        >
+                          Ver Resumo
+                        </button>
+                        <button
+                          onClick={() => onDeleteMeeting(m.id)}
+                          className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl flex items-center justify-center transition-colors"
+                          title="Excluir do Arquivo"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-[#1E293B]/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800">
-        <div className="max-w-4xl mx-auto">
-          <button 
-            onClick={onReset}
-            className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 font-bold text-lg py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg"
+      {/* Fixed Action Footer (Princípio 2: Alvo ≥ 56px) */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-[#1E293B]/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 z-40">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={handleCopyReport}
+            className="flex-1 min-h-[56px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-base rounded-2xl border border-slate-200 dark:border-slate-700 transition-all flex items-center justify-center gap-2 shadow-sm"
+          >
+            {copied ? <Check className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
+            {copied ? "Relatório Copiado com Sucesso!" : "Copiar Relatório para Envio"}
+          </button>
+          
+          <button
+            onClick={onNewMeeting}
+            className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-base rounded-2xl shadow-lg shadow-[#295E9F]/30 transition-all flex items-center justify-center gap-2"
           >
             <RefreshCw className="w-5 h-5" />
-            NOVA REUNIÃO
+            Configurar Nova Reunião
           </button>
         </div>
       </div>

@@ -1,155 +1,264 @@
 import React, { useEffect, useState } from 'react';
-import { MeetingState, MeetingPart } from '../types';
-import { formatTime, cn } from '../lib/utils';
-import { Play, CheckCircle2, Clock, SkipForward, AlertCircle, ArrowLeft } from 'lucide-react';
+import { MeetingState, MeetingPart, TOTAL_PLANNED_MEETING_MINUTES } from '../types';
+import { formatTime, cn, getBalanceColorClass, formatBalanceDisplay } from '../lib/utils';
+import { 
+  Play, 
+  CheckCircle2, 
+  SkipForward, 
+  AlertTriangle, 
+  Clock, 
+  CheckCheck,
+  X,
+  RotateCcw,
+  Sparkles,
+  Info
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MeetingStageProps {
   state: MeetingState;
   currentTimerSeconds: number;
   isTimerRunning: boolean;
+  progressPercent: number;
   onToggleTimer: () => void;
   onAdjustTimer: (delta: number) => void;
   onNextPhase: () => void;
   onSkipCounsel: () => void;
-  onEndMeeting: () => void;
+  onConcludeMeeting: () => void;
+  onEmergencyReset: () => void;
 }
 
 export function MeetingStage({ 
   state, 
   currentTimerSeconds, 
   isTimerRunning, 
+  progressPercent,
   onToggleTimer, 
   onAdjustTimer,
   onNextPhase,
   onSkipCounsel,
-  onEndMeeting
+  onConcludeMeeting,
+  onEmergencyReset
 }: MeetingStageProps) {
   
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showEndConfirmModal, setShowEndConfirmModal] = useState(false);
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const currentPart = state.parts[state.currentPartIndex];
-  
-  if (!currentPart && state.status === 'running') {
-     // Failsafe
-     onEndMeeting();
-     return null;
-  }
+  const isAllPartsDone = state.currentPartIndex >= state.parts.length;
+  const currentPart = state.parts[state.currentPartIndex] || state.parts[state.parts.length - 1];
 
-  // Calculate estimated end time
+  // Estimated end time calculation
   const remainingPlannedSeconds = state.parts
     .slice(state.currentPartIndex + (state.isCounselPhase ? 1 : 0))
     .reduce((sum, p) => sum + (p.plannedTime * 60) + (p.hasCounsel ? 60 : 0), 0);
   
-  const totalRemainingSeconds = currentTimerSeconds + remainingPlannedSeconds;
-  
+  const totalRemainingSeconds = Math.max(0, currentTimerSeconds) + remainingPlannedSeconds;
   const estimatedEndTime = new Date(currentTime.getTime() + totalRemainingSeconds * 1000);
   
-  const isWarning = currentTimerSeconds <= 60 && currentTimerSeconds > 0;
-  const isOvertime = currentTimerSeconds <= 0;
+  const isWarning = !isAllPartsDone && currentTimerSeconds <= 60 && currentTimerSeconds > 0;
+  const isOvertime = !isAllPartsDone && currentTimerSeconds <= 0 && isTimerRunning;
 
-  // Determine button state
-  const buttonState = !isTimerRunning ? 'start' : state.isCounselPhase ? 'counsel' : 'running';
+  // Standardized balance colors
+  const balanceColors = getBalanceColorClass(state.timeBalance);
+
+  // SVG Ring Progress calculations
+  const radius = 24;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (Math.min(100, progressPercent) / 100) * circumference;
 
   return (
     <div className={cn(
-      "flex flex-col h-screen w-full bg-slate-50 dark:bg-[#0F172A] text-slate-100 font-sans overflow-hidden transition-colors duration-1000",
-      isWarning && "border-t-4 border-amber-500",
-      isOvertime && "border-t-4 border-red-500/50"
+      "flex flex-col h-screen w-full bg-slate-50 dark:bg-[#0F172A] text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-500",
+      isWarning && "ring-4 ring-inset ring-amber-500/40",
+      isOvertime && "ring-4 ring-inset ring-red-500/50"
     )}>
-      {/* Top Bar */}
-      <header className="h-20 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-8 bg-white dark:bg-[#1E293B] shadow-lg shrink-0">
-        <div className="flex items-center gap-6">
+      {/* Top Bar (Estado sempre visível - RF04 / RF09) */}
+      <header className="h-20 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-8 bg-white dark:bg-[#1E293B] shadow-sm shrink-0 z-20">
+        <div className="flex items-center gap-4 md:gap-6">
           <div className="flex flex-col">
             <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Relógio</span>
-            <span className="text-xl md:text-2xl font-mono font-medium">
+            <span className="text-xl md:text-2xl font-mono font-bold text-slate-800 dark:text-slate-100">
               {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
-          <div className="h-8 w-[1px] bg-slate-700 hidden md:block"></div>
-          <div className="flex flex-col hidden md:flex">
+          
+          <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
+          
+          <div className="flex flex-col hidden sm:flex">
             <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Término Previsto</span>
-            <span className="text-2xl font-mono font-medium">
+            <span className="text-xl md:text-2xl font-mono font-bold text-slate-700 dark:text-slate-200">
               {estimatedEndTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
         </div>
 
-        <div className="flex flex-col items-center hidden md:flex">
-          <div className="text-[11px] uppercase tracking-widest text-[#4A6CA7] font-bold mb-1">Assistente de Palco — V.1.0</div>
-          <div className="h-1 w-48 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-[#4A6CA7] shadow-[0_0_10px_#4A6CA7] transition-all duration-1000" 
-              style={{ width: `${Math.max(0, Math.min(100, (state.currentPartIndex / Math.max(1, state.parts.length)) * 100))}%` }}
-            ></div>
+        {/* RF09: Anel de Progresso Central e Índice de Andamento */}
+        <div className="flex items-center gap-3 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
+          <div className="relative w-11 h-11 flex items-center justify-center">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 56 56">
+              <circle
+                cx="28"
+                cy="28"
+                r={radius}
+                className="text-slate-300 dark:text-slate-700 stroke-current"
+                strokeWidth="5"
+                fill="transparent"
+              />
+              <circle
+                cx="28"
+                cy="28"
+                r={radius}
+                className="text-[#295E9F] dark:text-[#4A6CA7] stroke-current transition-all duration-500 ease-out"
+                strokeWidth="5"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                fill="transparent"
+              />
+            </svg>
+            <span className="absolute text-[11px] font-mono font-bold text-slate-800 dark:text-slate-100">
+              {progressPercent}%
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Andamento</span>
+            <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">
+              {Math.round(state.totalElapsedSeconds / 60)} / {TOTAL_PLANNED_MEETING_MINUTES} min
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 md:gap-6 text-right">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold font-mono">Saldo Total</span>
+        {/* Saldo de Tempo Padronizado (Âmbar = Atrasado, Azul = Adiantado) */}
+        <div className="flex items-center gap-4 text-right">
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">
+              Saldo da Reunião
+            </span>
             <span className={cn(
-              "text-xl md:text-2xl font-mono font-bold",
-              state.timeBalance > 15 ? "text-red-400" : state.timeBalance < -15 ? "text-emerald-400" : "text-sky-400"
+              "text-xl md:text-2xl font-mono font-black tracking-tight",
+              balanceColors.text
             )}>
-              {state.timeBalance > 0 ? '+' : ''}{formatTime(state.timeBalance)}
+              {formatBalanceDisplay(state.timeBalance)}
             </span>
           </div>
+          
           <button 
-            onClick={onEndMeeting} 
-            className="h-10 w-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center border border-slate-300 dark:border-slate-700 cursor-pointer hover:bg-slate-700 transition-colors"
-            title="Encerrar Reunião"
+            onClick={() => setShowExitConfirmModal(true)} 
+            className="h-11 w-11 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+            title="Opções de Saída"
           >
-            <div className="w-4 h-4 border-2 border-slate-400 rounded-sm"></div>
+            <X className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-0 overflow-hidden">
-        <aside className="hidden md:flex col-span-3 border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0F172A]/50 flex-col overflow-hidden">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-900/30 shrink-0">
-            <h2 className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Agenda da Reunião</h2>
-          </div>
-          <div className="flex-1 p-2 space-y-1 overflow-y-auto opacity-90">
-            {state.parts.map((part, index) => {
-              let statusClass = "p-3 border-l-4 flex flex-col transition-colors ";
-              let statusTitle = "";
-              if (index < state.currentPartIndex) {
-                statusClass += "bg-emerald-500/10 border-emerald-500 rounded";
-                statusTitle = "Concluído";
-              } else if (index === state.currentPartIndex) {
-                statusClass += "bg-white dark:bg-[#1E293B] border-[#4A6CA7] rounded ring-1 ring-[#4A6CA7]/30";
-                statusTitle = "Em Execução";
+      {/* RF09: Barra de Progresso Segmentada por Parte (Sempre Visível) */}
+      <div className="bg-slate-100 dark:bg-[#1E293B]/60 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 py-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 w-full">
+          {state.parts.map((p, idx) => {
+            const recorded = state.history.find(h => h.id === p.id);
+            const isCompleted = idx < state.currentPartIndex || (isAllPartsDone && idx < state.parts.length);
+            const isCurrent = !isAllPartsDone && idx === state.currentPartIndex;
+
+            let segmentColor = "bg-slate-300 dark:bg-slate-700 opacity-50"; // Pendente
+            if (isCompleted) {
+              if (recorded?.status === 'Excedido') {
+                segmentColor = "bg-amber-500"; // Atraso (Âmbar)
+              } else if (recorded?.status === 'Abaixo do tempo') {
+                segmentColor = "bg-sky-500"; // Adiantado (Azul)
               } else {
-                statusClass += "border-transparent opacity-40";
+                segmentColor = "bg-emerald-500"; // No tempo (Verde)
               }
+            } else if (isCurrent) {
+              segmentColor = "bg-[#295E9F] dark:bg-[#4A6CA7] ring-2 ring-sky-400 ring-offset-1 dark:ring-offset-slate-900 animate-pulse";
+            }
+
+            return (
+              <div 
+                key={p.id}
+                title={`${p.title} (${p.plannedTime}m)${recorded ? ` - ${recorded.status}` : isCurrent ? ' (Em andamento)' : ''}`}
+                className={cn(
+                  "h-2.5 flex-1 rounded-full transition-all duration-300",
+                  segmentColor
+                )}
+              />
+            );
+          })}
+        </div>
+        <div className="flex justify-between items-center mt-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+          <span>Parte {Math.min(state.parts.length, state.currentPartIndex + 1)} de {state.parts.length}</span>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> No tempo</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"></span> Atrasado</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-500"></span> Adiantado</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Grid */}
+      <main className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-0 overflow-hidden">
+        
+        {/* Left Sidebar: Agenda com Status em Tempo Real */}
+        <aside className="hidden md:flex col-span-3 border-r border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-[#0F172A]/40 flex-col overflow-hidden">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+            <h2 className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">Agenda S-38-T</h2>
+            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+              {state.parts.length} partes
+            </span>
+          </div>
+          
+          <div className="flex-1 p-3 space-y-1.5 overflow-y-auto">
+            {state.parts.map((part, index) => {
+              const isPast = index < state.currentPartIndex;
+              const isPresent = index === state.currentPartIndex && !isAllPartsDone;
+              const historyItem = state.history.find(h => h.id === part.id);
+
               return (
-                <div key={part.id} className={statusClass}>
-                  {(index <= state.currentPartIndex) && (
-                    <div className="flex justify-between items-start">
-                      <span className={cn("text-[10px] font-bold uppercase", index < state.currentPartIndex ? "text-emerald-400" : "text-[#4A6CA7]")}>
-                        {statusTitle}
-                      </span>
-                      <span className="text-[10px] font-mono">{part.plannedTime}:00</span>
+                <div 
+                  key={part.id} 
+                  className={cn(
+                    "p-3 rounded-xl border transition-all duration-200 flex flex-col gap-1",
+                    isPresent && "bg-white dark:bg-[#1E293B] border-[#295E9F] dark:border-[#4A6CA7] shadow-md ring-1 ring-[#295E9F]/20",
+                    isPast && "bg-slate-100/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-90",
+                    !isPast && !isPresent && "border-transparent opacity-40 hover:opacity-60"
+                  )}
+                >
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-700 dark:text-slate-200 truncate pr-2">
+                      {part.title}
+                    </span>
+                    <span className="font-mono text-[11px] shrink-0 text-slate-500 dark:text-slate-400">
+                      {part.plannedTime}m
+                    </span>
+                  </div>
+
+                  {!part.hideSpeaker && (
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      {part.speaker || "Sem orador"}
+                      {part.assistant && <span className="text-slate-400 dark:text-slate-500"> c/ {part.assistant}</span>}
                     </div>
                   )}
-                  {(index > state.currentPartIndex) && (
-                    <span className="text-[10px] font-mono mb-1">{part.plannedTime}:00</span>
-                  )}
-                  <span className={cn("text-sm", index === state.currentPartIndex ? "font-bold text-white" : "font-medium")}>
-                    {part.title}
-                  </span>
-                  {!part.hideSpeaker && (
-                    <span className={cn("text-xs", index === state.currentPartIndex ? "text-slate-600 dark:text-slate-300" : "text-slate-500 dark:text-slate-400")}>
-                      {part.speaker || "Sem orador designado"}
-                      {part.assistant && ` c/ ${part.assistant}`}
-                    </span>
+
+                  {isPast && historyItem && (
+                    <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-200/60 dark:border-slate-800/60 text-[10px] font-mono">
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Real: {formatTime(historyItem.actualTime)}
+                      </span>
+                      <span className={cn(
+                        "font-bold uppercase",
+                        historyItem.status === 'Excedido' ? "text-amber-500 dark:text-amber-400" :
+                        historyItem.status === 'Abaixo do tempo' ? "text-sky-500 dark:text-sky-400" :
+                        "text-emerald-500 dark:text-emerald-400"
+                      )}>
+                        {historyItem.status}
+                      </span>
+                    </div>
                   )}
                 </div>
               );
@@ -157,157 +266,339 @@ export function MeetingStage({
           </div>
         </aside>
 
+        {/* Center Stage: Cronômetro Gigante & Informações de Palco */}
         <section className={cn(
-          "col-span-1 md:col-span-6 flex flex-col items-center justify-center p-8 relative overflow-hidden transition-colors",
-          isOvertime ? "bg-red-950/10" : isWarning ? "bg-amber-950/10" : "bg-[#020617]"
+          "col-span-1 md:col-span-6 flex flex-col items-center justify-center p-6 md:p-8 relative overflow-hidden transition-colors",
+          isOvertime ? "bg-red-500/5" : isWarning ? "bg-amber-500/5" : "bg-transparent"
         )}>
-          <AnimatePresence mode="wait">
-            <motion.div 
-              key={state.isCounselPhase ? 'counsel' : currentPart.id}
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.3 }}
-              className="flex flex-col items-center text-center w-full max-w-2xl z-10"
-            >
-              <div className="text-center space-y-2 mb-8">
-                <div className={cn(
-                  "px-4 py-1 border rounded-full text-xs font-bold uppercase tracking-widest inline-block",
-                  state.isCounselPhase ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-[#4A6CA7]/10 text-[#4A6CA7] border-[#4A6CA7]/20"
-                )}>
-                  {state.isCounselPhase ? "Fase de Elogio / Conselho" : "Parte em Andamento"}
-                </div>
-                <h1 className="text-3xl md:text-5xl font-light tracking-tight text-slate-900 dark:text-white leading-tight">
-                  {state.isCounselPhase ? "Elogio e Conselho" : currentPart.title}
+          {isAllPartsDone ? (
+            /* Estado Final da Reunião */
+            <div className="flex flex-col items-center text-center max-w-lg space-y-6 animate-in fade-in zoom-in-95 duration-500">
+              <div className="w-20 h-20 bg-emerald-500/10 text-emerald-500 rounded-3xl flex items-center justify-center border border-emerald-500/20 shadow-lg">
+                <CheckCheck className="w-10 h-10" />
+              </div>
+              <div className="space-y-2">
+                <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  Todas as Partes Concluídas!
                 </h1>
-                {!currentPart.hideSpeaker && (
-                  <p className="text-xl text-slate-500 dark:text-slate-400 font-medium">
-                    {currentPart.speaker || "Sem orador designado"}
-                    {currentPart.assistant && <span className="text-slate-500 text-lg"> c/ {currentPart.assistant}</span>}
+                <p className="text-slate-600 dark:text-slate-300 text-sm md:text-base">
+                  A programação foi finalizada. Clique no botão abaixo para encerrar a reunião e gerar o relatório imutável para a congregação.
+                </p>
+              </div>
+              <div className="p-4 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm w-full grid grid-cols-2 gap-4 text-left">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Tempo Total</span>
+                  <p className="text-xl font-bold font-mono text-slate-800 dark:text-slate-100">
+                    {Math.round(state.totalElapsedSeconds / 60)} min
                   </p>
-                )}
-              </div>
-
-              <div className="relative">
-                <div className={cn(
-                  "text-[100px] md:text-[180px] font-mono leading-none tracking-tighter font-bold flex items-baseline transition-colors",
-                  isOvertime ? "text-red-500" : isWarning ? "text-amber-400" : "text-slate-900 dark:text-white"
-                )}>
-                  {formatTime(currentTimerSeconds)}
                 </div>
-                <div className="absolute -right-16 top-1/2 -translate-y-1/2 rotate-90 text-[10px] tracking-[0.3em] font-bold text-slate-600 uppercase whitespace-nowrap hidden lg:block">
-                  Tempo Restante
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Saldo Final</span>
+                  <p className={cn("text-xl font-bold font-mono", balanceColors.text)}>
+                    {formatBalanceDisplay(state.timeBalance)}
+                  </p>
                 </div>
               </div>
-            </motion.div>
-          </AnimatePresence>
+            </div>
+          ) : (
+            /* Parte em Andamento */
+            <AnimatePresence mode="wait">
+              <motion.div 
+                key={state.isCounselPhase ? 'counsel' : currentPart.id}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.25 }}
+                className="flex flex-col items-center text-center w-full max-w-2xl z-10"
+              >
+                <div className="text-center space-y-2 mb-6 md:mb-8">
+                  <div className={cn(
+                    "px-4 py-1.5 border rounded-full text-xs font-bold uppercase tracking-widest inline-flex items-center gap-2",
+                    state.isCounselPhase 
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" 
+                      : "bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] border-[#295E9F]/30"
+                  )}>
+                    {state.isCounselPhase ? (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Fase de Elogio / Conselho (1 min)
+                      </>
+                    ) : (
+                      <>Parte {state.currentPartIndex + 1} de {state.parts.length}</>
+                    )}
+                  </div>
 
-          {/* Manual adjustments */}
-          <div className="absolute bottom-8 flex gap-4 opacity-30 hover:opacity-100 transition-opacity z-20">
-             <button onClick={() => onAdjustTimer(-60)} className="w-10 h-10 md:w-12 md:h-12 bg-slate-900 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800 font-mono text-xs md:text-sm border border-slate-200 dark:border-slate-800 transition-colors">-1m</button>
-             <button onClick={() => onAdjustTimer(-15)} className="w-10 h-10 md:w-12 md:h-12 bg-slate-900 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800 font-mono text-xs md:text-sm border border-slate-200 dark:border-slate-800 transition-colors">-15s</button>
-             <button onClick={() => onAdjustTimer(15)} className="w-10 h-10 md:w-12 md:h-12 bg-slate-900 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800 font-mono text-xs md:text-sm border border-slate-200 dark:border-slate-800 transition-colors">+15s</button>
-             <button onClick={() => onAdjustTimer(60)} className="w-10 h-10 md:w-12 md:h-12 bg-slate-900 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800 font-mono text-xs md:text-sm border border-slate-200 dark:border-slate-800 transition-colors">+1m</button>
-          </div>
-        </section>
+                  <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+                    {state.isCounselPhase ? "Elogio e Conselho" : currentPart.title}
+                  </h1>
 
-        <aside className="hidden md:flex col-span-3 border-l border-slate-200 dark:border-slate-800 flex-col bg-slate-50 dark:bg-[#0F172A]/50">
-          <div className="p-6 space-y-8 flex-1 flex flex-col">
-            <div className="space-y-4">
-              <h3 className="text-[11px] uppercase tracking-widest text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800 pb-2">Métricas da Parte</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
-                  <div className="text-[9px] uppercase text-slate-500 mb-1">Tempo Previsto</div>
-                  <div className="text-lg font-mono text-slate-600 dark:text-slate-300">
-                    {state.isCounselPhase ? "1 min" : `${currentPart.plannedTime} min`}
+                  {!currentPart.hideSpeaker && (
+                    <p className="text-lg md:text-2xl text-slate-600 dark:text-slate-300 font-medium">
+                      {currentPart.speaker || "Sem orador designado"}
+                      {currentPart.assistant && (
+                        <span className="text-slate-500 dark:text-slate-400 font-normal"> c/ {currentPart.assistant}</span>
+                      )}
+                    </p>
+                  )}
+                </div>
+
+                {/* Mostrador Numérico Extra-Bold */}
+                <div className="relative my-2">
+                  <div className={cn(
+                    "text-[80px] sm:text-[110px] md:text-[150px] font-mono leading-none tracking-tighter font-black flex items-baseline select-none transition-colors",
+                    isOvertime ? "text-red-500 animate-pulse" : isWarning ? "text-amber-500 dark:text-amber-400" : "text-slate-900 dark:text-white"
+                  )}>
+                    {formatTime(currentTimerSeconds)}
+                  </div>
+                  <div className="text-xs uppercase tracking-widest font-bold text-slate-400 mt-2">
+                    {currentTimerSeconds >= 0 ? "Tempo Restante da Parte" : "Tempo Excedido da Parte"}
                   </div>
                 </div>
-                <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
-                  <div className="text-[9px] uppercase text-slate-500 mb-1">Status</div>
+
+                {/* Botões de Ajuste Manual de Toque Amplo (≥56px) */}
+                <div className="mt-6 flex gap-3 z-20">
+                  <button 
+                    onClick={() => onAdjustTimer(-60)} 
+                    className="min-h-[48px] min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all"
+                    title="Diminuir 1 minuto"
+                  >
+                    -1m
+                  </button>
+                  <button 
+                    onClick={() => onAdjustTimer(-15)} 
+                    className="min-h-[48px] min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all"
+                    title="Diminuir 15 segundos"
+                  >
+                    -15s
+                  </button>
+                  <button 
+                    onClick={() => onAdjustTimer(15)} 
+                    className="min-h-[48px] min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all"
+                    title="Aumentar 15 segundos"
+                  >
+                    +15s
+                  </button>
+                  <button 
+                    onClick={() => onAdjustTimer(60)} 
+                    className="min-h-[48px] min-w-[56px] px-3 bg-white dark:bg-[#1E293B] rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-mono text-sm font-bold border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 transition-all"
+                    title="Aumentar 1 minuto"
+                  >
+                    +1m
+                  </button>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          )}
+        </section>
+
+        {/* Right Sidebar: Métricas e Próxima Transição */}
+        <aside className="hidden md:flex col-span-3 border-l border-slate-200 dark:border-slate-800 flex-col bg-white/50 dark:bg-[#0F172A]/40 p-5 space-y-6 justify-between">
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-800 pb-2 mb-3">
+                Métricas Desta Parte
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white dark:bg-[#1E293B] p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="text-[10px] uppercase text-slate-400 font-bold mb-1">Planejado</div>
+                  <div className="text-lg font-mono font-bold text-slate-800 dark:text-slate-200">
+                    {state.isCounselPhase ? "1 min" : `${currentPart?.plannedTime || 5} min`}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-[#1E293B] p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="text-[10px] uppercase text-slate-400 font-bold mb-1">Ritmo Atual</div>
                   <div className={cn(
-                    "text-lg font-mono",
-                    isOvertime ? "text-red-400" : isWarning ? "text-amber-400" : "text-sky-400"
+                    "text-lg font-mono font-bold",
+                    isOvertime ? "text-red-500" : isWarning ? "text-amber-500" : "text-emerald-500"
                   )}>
-                    {isOvertime ? "Excedido" : "No Ritmo"}
+                    {isOvertime ? "Atrasado" : isWarning ? "Atenção" : "No Tempo"}
                   </div>
                 </div>
               </div>
             </div>
-            
+
+            {/* Próxima Transição */}
             {state.currentPartIndex + 1 < state.parts.length && !state.isCounselPhase && (
-              <div className="space-y-4">
-                <h3 className="text-[11px] uppercase tracking-widest text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800 pb-2">Próxima Transição</h3>
-                <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-300 dark:border-slate-700">
-                  <div className="w-10 h-10 rounded-lg bg-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
-                    <span className="font-bold">{state.parts[state.currentPartIndex + 1].title.substring(0, 2).toUpperCase()}</span>
+              <div>
+                <h3 className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-800 pb-2 mb-3">
+                  Próxima Transição
+                </h3>
+                <div className="bg-white dark:bg-[#1E293B] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] rounded text-[11px] font-mono font-bold">
+                      {state.parts[state.currentPartIndex + 1].plannedTime}m
+                    </span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">
+                      {state.parts[state.currentPartIndex + 1].title}
+                    </span>
                   </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold truncate">{state.parts[state.currentPartIndex + 1].title}</span>
-                    {!state.parts[state.currentPartIndex + 1].hideSpeaker && (
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 italic font-mono truncate">
-                        {state.parts[state.currentPartIndex + 1].speaker || "Sem orador"}
-                        {state.parts[state.currentPartIndex + 1].assistant && ` c/ ${state.parts[state.currentPartIndex + 1].assistant}`}
-                      </span>
-                    )}
-                  </div>
+                  {!state.parts[state.currentPartIndex + 1].hideSpeaker && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                      {state.parts[state.currentPartIndex + 1].speaker || "Sem orador designado"}
+                      {state.parts[state.currentPartIndex + 1].assistant && ` c/ ${state.parts[state.currentPartIndex + 1].assistant}`}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
+          </div>
 
-            <div className="space-y-2 mt-auto pt-8">
-              <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-500">Alarme Silencioso</span>
-                <div className="w-10 h-5 bg-emerald-600 rounded-full relative p-1">
-                  <div className="h-3 w-3 bg-white rounded-full ml-auto shadow-sm"></div>
-                </div>
-              </div>
-              <p className="text-[9px] text-slate-500 text-center uppercase tracking-tighter opacity-50">Diretriz S-38-T Compliance</p>
+          {/* Compliance S-38-T */}
+          <div className="p-3 bg-slate-100 dark:bg-[#1E293B]/60 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+            <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+              S-38-T Edição 8/26
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Alarme silencioso e absorção automática
             </div>
           </div>
         </aside>
       </main>
 
-      {/* 1-Tap Focus Bottom Bar */}
-      <footer className="h-20 md:h-24 bg-white dark:bg-[#1E293B] border-t border-slate-200 dark:border-slate-800 p-4 flex gap-4 shrink-0 z-50">
-        {buttonState === 'start' && (
+      {/* RF03 & Princípio 2: Botão Primário Inteligente (Altura ≥ 56px, Maior Elemento da Tela) */}
+      <footer className="h-24 md:h-28 bg-white dark:bg-[#1E293B] border-t border-slate-200 dark:border-slate-800 p-4 flex gap-4 shrink-0 z-30 shadow-lg">
+        {isAllPartsDone ? (
+          /* Botão Final de Encerramento (RF08) */
+          <button 
+            onClick={() => setShowEndConfirmModal(true)}
+            className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-[#295E9F]/30 active:scale-[0.99] cursor-pointer"
+          >
+            <CheckCheck className="w-7 h-7" />
+            <span className="text-xl md:text-2xl font-black tracking-wider uppercase truncate">
+              ENCERRAR REUNIÃO E GRAVAR HISTÓRICO
+            </span>
+          </button>
+        ) : !isTimerRunning ? (
+          /* Botão Iniciar Cronômetro */
           <button 
             onClick={onToggleTimer}
-            className="flex-1 bg-[#295E9F] hover:bg-[#3474C2] transition-colors rounded-xl flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(41,94,159,0.3)] text-white"
+            className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-[#295E9F]/30 active:scale-[0.99] cursor-pointer"
           >
-            <Play className="w-5 h-5 md:w-6 md:h-6 fill-current" />
-            <span className="text-lg md:text-2xl font-black tracking-widest uppercase truncate">INICIAR {state.isCounselPhase ? "CONSELHO" : "PARTE"}</span>
+            <Play className="w-7 h-7 fill-current" />
+            <span className="text-xl md:text-2xl font-black tracking-wider uppercase truncate">
+              INICIAR {state.isCounselPhase ? "CONSELHO" : "PARTE"}
+            </span>
           </button>
-        )}
-
-        {buttonState === 'running' && (
-          <button 
-            onClick={onNextPhase}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-500 transition-colors rounded-xl flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(16,185,129,0.3)] text-white"
-          >
-            <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6" />
-            <span className="text-lg md:text-2xl font-black tracking-widest uppercase truncate">Concluir Parte</span>
-          </button>
-        )}
-
-        {buttonState === 'counsel' && (
+        ) : state.isCounselPhase ? (
+          /* Botão Concluir Conselho com Opção de Pular */
           <>
             <button 
               onClick={onNextPhase}
-              className="flex-[2] bg-emerald-600 hover:bg-emerald-500 transition-colors rounded-xl flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(16,185,129,0.3)] text-white"
+              className="flex-[2] min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
             >
-              <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 shrink-0" />
-              <span className="text-lg md:text-2xl font-black tracking-widest uppercase truncate">Concluir Conselho</span>
+              <CheckCircle2 className="w-7 h-7 shrink-0" />
+              <span className="text-xl md:text-2xl font-black tracking-wider uppercase truncate">
+                CONCLUIR CONSELHO
+              </span>
             </button>
             <button 
               onClick={onSkipCounsel}
-              className="flex-1 bg-slate-50 dark:bg-[#0F172A] hover:bg-black transition-colors rounded-xl flex items-center justify-center gap-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+              className="flex-1 min-h-[56px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-all rounded-2xl flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer"
             >
-              <SkipForward className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
-              <span className="text-xs md:text-sm font-bold uppercase tracking-wider truncate">Pular Elogio</span>
+              <SkipForward className="w-5 h-5 shrink-0" />
+              <span className="text-sm md:text-base font-bold uppercase tracking-wider truncate">
+                Pular Elogio
+              </span>
             </button>
           </>
+        ) : (
+          /* Botão Concluir Parte */
+          <button 
+            onClick={onNextPhase}
+            className="flex-1 min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
+          >
+            <CheckCircle2 className="w-7 h-7" />
+            <span className="text-xl md:text-2xl font-black tracking-wider uppercase truncate">
+              CONCLUIR PARTE
+            </span>
+          </button>
         )}
       </footer>
+
+      {/* RF08: Modal de Confirmação Única de Encerramento */}
+      {showEndConfirmModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] rounded-2xl flex items-center justify-center mx-auto">
+              <CheckCheck className="w-8 h-8" />
+            </div>
+            
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Encerrar Reunião?
+              </h2>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Esta ação finalizará a sessão ao vivo e gravará o histórico imutável com todos os tempos e oradores para consulta do Superintendente.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                onClick={() => {
+                  setShowEndConfirmModal(false);
+                  onConcludeMeeting();
+                }}
+                className="w-full min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-lg rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                Sim, Gravar e Exibir Resumo
+              </button>
+              <button
+                onClick={() => setShowEndConfirmModal(false)}
+                className="w-full min-h-[48px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-2xl transition-all"
+              >
+                Voltar ao Palco
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Saída / Encerramento de Emergência */}
+      {showExitConfirmModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-8 h-8" />
+            </div>
+            
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Opções da Reunião
+              </h2>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Você pode encerrar a reunião agora gravando o histórico das partes já feitas ou descartar esta sessão.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                onClick={() => {
+                  setShowExitConfirmModal(false);
+                  onConcludeMeeting();
+                }}
+                className="w-full min-h-[52px] bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-base rounded-2xl shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                Encerrar e Gravar Progresso Atual
+              </button>
+              <button
+                onClick={() => {
+                  setShowExitConfirmModal(false);
+                  onEmergencyReset();
+                }}
+                className="w-full min-h-[52px] bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 font-bold text-base rounded-2xl border border-red-500/30 transition-all flex items-center justify-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" /> Descartar Sessão e Voltar ao Início
+              </button>
+              <button
+                onClick={() => setShowExitConfirmModal(false)}
+                className="w-full min-h-[48px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-2xl transition-all"
+              >
+                Continuar Reunião
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
