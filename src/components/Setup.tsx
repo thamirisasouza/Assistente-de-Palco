@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { MeetingState, MeetingPart, CongregationSettings, Role, Brother, WeekType, TOTAL_PLANNED_MEETING_MINUTES, CompletedMeeting } from '../types';
 import { 
   Play, Plus, Trash2, Clock, Users, Calendar, Building2, Edit2, X, Check, 
   FileText, CheckCircle2, AlertCircle, Sparkles, BookOpen, CalendarX, 
   UserPlus, ClipboardPaste, ChevronDown, ChevronUp, ChevronRight, BarChart3,
-  Cloud, RefreshCw
+  Cloud, RefreshCw, Search
 } from 'lucide-react';
 import { cn, addMinutesToTime } from '../lib/utils';
 import { ImportApostilaModal } from './ImportApostilaModal';
+import { BatchBrothersModal } from './BatchBrothersModal';
 
 import { groupPartsBySection, SECTIONS } from '../lib/sectionColors';
 import { AnalyticsCharts } from './AnalyticsCharts';
@@ -32,11 +33,16 @@ interface SetupProps {
 
 export function Setup({ 
   state, settings, archivedCount, archivedMeetings, firebaseStatus = 'synced', onUpdatePart, onApplyAllParts, onStart, 
-  onUpdateSettings, onUpdateBrother, onAddBrother, onAddBrothersBatch, onRemoveBrother, onViewArchive,
+  onUpdateSettings, onUpdateBrother, onAddBrother, onAddBrothersBatch, onRemoveBrother, onViewArchive, onViewArchivedMeeting
 }: SetupProps) {
   const [activeTab, setActiveTab] = useState<'programacao' | 'congregacao' | 'graficos'>('programacao');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [isPdfSectionOpen, setIsPdfSectionOpen] = useState(false);
+
+  const [newBrotherName, setNewBrotherName] = useState('');
+  const [newBrotherRole, setNewBrotherRole] = useState<Role>('Publicador');
+  const [brotherSearch, setBrotherSearch] = useState('');
 
   const [importedWeekLabel, setImportedWeekLabel] = useState<string | null>(null);
 
@@ -54,6 +60,22 @@ export function Setup({
   });
 
   const groupedSections = groupPartsBySection(state.parts);
+
+  const filteredBrothers = useMemo(() => {
+    if (!brotherSearch.trim()) return settings.brothers;
+    const q = brotherSearch.toLowerCase();
+    return settings.brothers.filter(b => 
+      b.name.toLowerCase().includes(q) || b.role.toLowerCase().includes(q)
+    );
+  }, [settings.brothers, brotherSearch]);
+
+  const handleAddBrotherSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newBrotherName.trim()) {
+      onAddBrother(newBrotherName.trim(), newBrotherRole);
+      setNewBrotherName('');
+    }
+  };
 
   return (
     <div className="w-full min-h-screen bg-slate-50 dark:bg-[#0F172A] flex flex-col items-center">
@@ -132,7 +154,7 @@ export function Setup({
         </header>
 
         {activeTab === 'congregacao' && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-400">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-400">
             {/* Cloud Database Status Banner */}
             <section className="bg-gradient-to-r from-[#295E9F]/10 via-[#295E9F]/5 to-transparent border border-[#295E9F]/20 rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
@@ -156,7 +178,182 @@ export function Setup({
               </div>
             </section>
 
+            {/* Configurações da Reunião / Congregação */}
+            <section className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5">
+              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] flex items-center justify-center font-bold shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                    Configurações da Congregação
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Defina o nome oficial da congregação e o horário habitual de início das reuniões.
+                  </p>
+                </div>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-[#295E9F]" />
+                    Nome da Congregação
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.name}
+                    onChange={(e) => onUpdateSettings({ name: e.target.value })}
+                    placeholder="Ex: Central"
+                    className="w-full min-h-[44px] bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-2.5 text-xs sm:text-sm focus:border-[#295E9F] focus:ring-1 focus:ring-[#295E9F] outline-none font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-[#295E9F]" />
+                    Horário Padrão de Início
+                  </label>
+                  <input
+                    type="time"
+                    value={settings.defaultTime}
+                    onChange={(e) => onUpdateSettings({ defaultTime: e.target.value })}
+                    className="w-full min-h-[44px] bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-2.5 text-xs sm:text-sm focus:border-[#295E9F] focus:ring-1 focus:ring-[#295E9F] outline-none font-medium"
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Gestão dos Irmãos e Publicadores */}
+            <section className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] flex items-center justify-center font-bold shrink-0">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                        Lista de Irmãos e Publicadores
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        {settings.brothers.length}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Cadastre e gerencie os nomes para seleção rápida de partes na programação.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsBatchModalOpen(true)}
+                  className="min-h-[40px] px-4 bg-[#295E9F]/10 hover:bg-[#295E9F]/20 text-[#295E9F] dark:text-[#4A6CA7] font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 border border-[#295E9F]/20 cursor-pointer self-start sm:self-auto"
+                >
+                  <ClipboardPaste className="w-4 h-4" />
+                  Importar Vários (Colar Lista)
+                </button>
+              </div>
+
+              {/* Form de Adicionar Irmão Individual */}
+              <form onSubmit={handleAddBrotherSubmit} className="p-4 bg-slate-50 dark:bg-[#0F172A] rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <UserPlus className="w-4 h-4 text-[#295E9F]" />
+                  Adicionar Novo Irmão
+                </span>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={newBrotherName}
+                    onChange={(e) => setNewBrotherName(e.target.value)}
+                    placeholder="Nome completo do irmão..."
+                    className="flex-1 min-h-[44px] bg-white dark:bg-[#1E293B] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-2 text-xs sm:text-sm focus:border-[#295E9F] focus:ring-1 focus:ring-[#295E9F] outline-none"
+                  />
+                  <select
+                    value={newBrotherRole}
+                    onChange={(e) => setNewBrotherRole(e.target.value as Role)}
+                    className="min-h-[44px] bg-white dark:bg-[#1E293B] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-xs sm:text-sm focus:border-[#295E9F] focus:ring-1 focus:ring-[#295E9F] outline-none font-medium"
+                  >
+                    <option value="Publicador">Publicador</option>
+                    <option value="Servo Ministerial">Servo Ministerial</option>
+                    <option value="Ancião">Ancião</option>
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={!newBrotherName.trim()}
+                    className="min-h-[44px] px-5 bg-[#295E9F] hover:bg-[#3474C2] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Adicionar
+                  </button>
+                </div>
+              </form>
+
+              {/* Busca e Lista de Irmãos */}
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={brotherSearch}
+                    onChange={(e) => setBrotherSearch(e.target.value)}
+                    placeholder="Buscar por nome ou cargo..."
+                    className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-[#295E9F]"
+                  />
+                </div>
+
+                <div className="max-h-[380px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {filteredBrothers.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-xs">
+                      {brotherSearch ? "Nenhum irmão encontrado com esse termo." : "Nenhum irmão cadastrado ainda. Adicione acima ou cole uma lista."}
+                    </div>
+                  ) : (
+                    filteredBrothers.map((brother) => (
+                      <div
+                        key={brother.id}
+                        className="p-3 bg-slate-50 dark:bg-[#0F172A]/60 border border-slate-200/80 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0",
+                            brother.role === 'Ancião' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                            brother.role === 'Servo Ministerial' ? "bg-sky-500/10 text-sky-600 dark:text-sky-400" :
+                            "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                          )}>
+                            {brother.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            {brother.name}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <select
+                            value={brother.role}
+                            onChange={(e) => onUpdateBrother(brother.id, { role: e.target.value as Role })}
+                            className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-medium rounded-lg px-2 py-1 outline-none focus:border-[#295E9F]"
+                          >
+                            <option value="Publicador">Publicador</option>
+                            <option value="Servo Ministerial">Servo Ministerial</option>
+                            <option value="Ancião">Ancião</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => onRemoveBrother(brother.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                            title="Remover irmão"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
           </div>
         )}
 
@@ -236,42 +433,22 @@ export function Setup({
               )}
             </div>
 
-            {/* Informações da Sessão (Presidente e Semana) */}
-            <div className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                  Presidente da Reunião
-                </label>
-                <select
-                  value={settings.presidentName}
-                  onChange={(e) => onUpdateSettings({ presidentName: e.target.value })}
-                  className="w-full min-h-[44px] bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-2.5 text-xs sm:text-sm focus:border-[#295E9F] focus:ring-1 focus:ring-[#295E9F] appearance-none font-medium"
-                >
-                  <option value="Presidente da Reunião">Presidente da Reunião (Padrão)</option>
-                  {settings.brothers
-                    .filter(b => b.role === 'Ancião' || b.role === 'Servo Ministerial')
-                    .map(b => (
-                      <option key={b.id} value={b.name}>{b.name} ({b.role})</option>
-                    ))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                  Tipo de Reunião / Semana
-                </label>
-                <select
-                  value={settings.weekType}
-                  onChange={(e) => onUpdateSettings({ weekType: e.target.value as WeekType })}
-                  className="w-full min-h-[44px] bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-2.5 text-xs sm:text-sm focus:border-[#295E9F] focus:ring-1 focus:ring-[#295E9F] appearance-none font-medium"
-                >
-                  <option value="Normal">Meio de Semana Normal (Apostila)</option>
-                  <option value="Visita do SC (Semana)">Visita do SC: Meio de Semana (Discurso no lugar do livro)</option>
-                  <option value="Visita do SC (Final de Semana)">Visita do SC: Fim de Semana (Discurso / Resumo / Discurso final)</option>
-                  <option value="Fim de Semana Normal">Fim de Semana Normal (Discurso + Sentinela)</option>
-                  <option value="Semana de Assembleia">Semana de Assembleia / Congresso (Sem Reunião)</option>
-                </select>
-              </div>
+            {/* Tipo de Reunião / Semana */}
+            <div className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                Tipo de Reunião / Semana
+              </label>
+              <select
+                value={settings.weekType}
+                onChange={(e) => onUpdateSettings({ weekType: e.target.value as WeekType })}
+                className="w-full min-h-[44px] bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-2.5 text-xs sm:text-sm focus:border-[#295E9F] focus:ring-1 focus:ring-[#295E9F] appearance-none font-medium"
+              >
+                <option value="Normal">Meio de Semana Normal (Apostila)</option>
+                <option value="Visita do SC (Semana)">Visita do SC: Meio de Semana (Discurso no lugar do livro)</option>
+                <option value="Visita do SC (Final de Semana)">Visita do SC: Fim de Semana (Discurso / Resumo / Discurso final)</option>
+                <option value="Fim de Semana Normal">Fim de Semana Normal (Discurso + Sentinela)</option>
+                <option value="Semana de Assembleia">Semana de Assembleia / Congresso (Sem Reunião)</option>
+              </select>
             </div>
 
             {settings.weekType === 'Semana de Assembleia' && (
@@ -526,7 +703,6 @@ export function Setup({
         )}
       </div>
 
-
       {/* Modal de Importação Mensal de PDF */}
       <ImportApostilaModal
         isOpen={isImportModalOpen}
@@ -551,6 +727,17 @@ export function Setup({
 
           // Auto-registra irmãos encontrados que ainda não estejam na lista
           onAddBrothersBatch(allBrothersFound, 'Publicador');
+        }}
+      />
+
+      {/* Modal de Adição em Lote de Irmãos */}
+      <BatchBrothersModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        existingBrothers={settings.brothers}
+        onAddBrothers={(newBrothers) => {
+          onAddBrothersBatch(newBrothers);
+          setIsBatchModalOpen(false);
         }}
       />
 
