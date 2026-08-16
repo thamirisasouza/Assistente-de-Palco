@@ -10,6 +10,7 @@ import {
   onSnapshot,
   getDocFromServer
 } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { CongregationSettings, CompletedMeeting } from "../types";
 
@@ -27,6 +28,7 @@ export const firebaseConfig = {
 // Inicialização segura do Firebase App
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const auth = getAuth(app);
 
 // Inicialização segura do Google Analytics
 if (typeof window !== "undefined") {

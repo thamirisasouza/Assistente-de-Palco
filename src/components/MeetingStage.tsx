@@ -90,13 +90,21 @@ export function MeetingStage({
 
   return (
     <div className={cn(
-      "flex flex-col h-screen w-full bg-slate-50 dark:bg-[#0F172A] text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-500",
+      "flex flex-col h-screen w-full font-sans overflow-hidden transition-colors duration-500",
+      isAllPartsDone
+        ? "bg-emerald-50/70 dark:bg-[#062017] text-slate-900 dark:text-slate-100 ring-8 ring-inset ring-emerald-500/50"
+        : "bg-slate-50 dark:bg-[#0F172A] text-slate-900 dark:text-slate-100",
       isWarning && "ring-4 ring-inset ring-amber-500/40",
       isOvertime && "ring-4 ring-inset ring-red-500/50"
     )}>
       
       {/* 1. Header Top Bar (Relógio, Andamento, Saldo, Botão Finalizar e Botão Fechar Tela) */}
-      <header className="h-20 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-3 sm:px-6 md:px-8 bg-white dark:bg-[#1E293B] shadow-sm shrink-0 z-30">
+      <header className={cn(
+        "h-20 border-b flex items-center justify-between px-3 sm:px-6 md:px-8 shadow-sm shrink-0 z-30 transition-colors",
+        isAllPartsDone
+          ? "bg-emerald-100/60 dark:bg-[#0A2E22] border-emerald-500/30"
+          : "bg-white dark:bg-[#1E293B] border-slate-200 dark:border-slate-800"
+      )}>
         
         {/* Esquerda: Relógio & Término Previsto */}
         <div className="flex items-center gap-3 sm:gap-6">
@@ -575,7 +583,7 @@ export function MeetingStage({
           /* Botão Final de Encerramento */
           <button 
             onClick={() => setShowEndConfirmModal(true)}
-            className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-[#295E9F]/30 active:scale-[0.99] cursor-pointer"
+            className="flex-1 min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
           >
             <CheckCheck className="w-7 h-7" />
             <span className="text-lg sm:text-2xl font-black tracking-wider uppercase truncate">
@@ -583,12 +591,12 @@ export function MeetingStage({
             </span>
           </button>
         ) : !isTimerRunning ? (
-          /* Botão Iniciar Cronômetro */
+          /* Botão Iniciar Cronômetro com Efeito Piscante */
           <button 
             onClick={onToggleTimer}
-            className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-[#295E9F]/30 active:scale-[0.99] cursor-pointer"
+            className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-[#295E9F]/30 active:scale-[0.99] cursor-pointer animate-pulse-attention"
           >
-            <Play className="w-7 h-7 fill-current" />
+            <Play className="w-7 h-7 fill-current animate-pulse" />
             <span className="text-lg sm:text-2xl font-black tracking-wider uppercase truncate">
               INICIAR {state.isCounselPhase ? "CONSELHO" : "PARTE"}
             </span>

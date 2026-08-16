@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { cn, addMinutesToTime } from '../lib/utils';
 import { ImportApostilaModal } from './ImportApostilaModal';
-import { BatchBrothersModal } from './BatchBrothersModal';
+
 import { groupPartsBySection, SECTIONS } from '../lib/sectionColors';
 import { AnalyticsCharts } from './AnalyticsCharts';
 
@@ -27,28 +27,18 @@ interface SetupProps {
   onAddBrothersBatch: (items: Array<string | { name: string; role?: Role }>, defaultRole?: Role) => void;
   onRemoveBrother: (id: string) => void;
   onViewArchive: () => void;
-  onLoadSampleData?: (sampleMeetings: CompletedMeeting[]) => void;
-  onClearSampleData?: () => void;
   onViewArchivedMeeting?: (meeting: CompletedMeeting) => void;
 }
 
 export function Setup({ 
   state, settings, archivedCount, archivedMeetings, firebaseStatus = 'synced', onUpdatePart, onApplyAllParts, onStart, 
   onUpdateSettings, onUpdateBrother, onAddBrother, onAddBrothersBatch, onRemoveBrother, onViewArchive,
-  onLoadSampleData, onClearSampleData, onViewArchivedMeeting
 }: SetupProps) {
   const [activeTab, setActiveTab] = useState<'programacao' | 'congregacao' | 'graficos'>('programacao');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPdfSectionOpen, setIsPdfSectionOpen] = useState(false);
-  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-  const [importedWeekLabel, setImportedWeekLabel] = useState<string | null>(null);
-  const [newBrotherName, setNewBrotherName] = useState("");
-  const [newBrotherRole, setNewBrotherRole] = useState<Role>("Publicador");
 
-  // Edit state
-  const [editingBrotherId, setEditingBrotherId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editRole, setEditRole] = useState<Role>("Publicador");
+  const [importedWeekLabel, setImportedWeekLabel] = useState<string | null>(null);
 
   const totalPlannedMinutes = state.parts.reduce((sum, p) => sum + p.plannedTime + (p.hasCounsel ? 1 : 0), 0);
   const is105Standard = totalPlannedMinutes === TOTAL_PLANNED_MEETING_MINUTES;
@@ -64,26 +54,6 @@ export function Setup({
   });
 
   const groupedSections = groupPartsBySection(state.parts);
-
-  const handleAddManual = () => {
-    if (newBrotherName.trim()) {
-      onAddBrother(newBrotherName, newBrotherRole);
-      setNewBrotherName("");
-    }
-  };
-
-  const startEditing = (b: Brother) => {
-    setEditingBrotherId(b.id);
-    setEditName(b.name);
-    setEditRole(b.role);
-  };
-
-  const saveEdit = (id: string) => {
-    if (editName.trim()) {
-      onUpdateBrother(id, { name: editName, role: editRole });
-    }
-    setEditingBrotherId(null);
-  };
 
   return (
     <div className="w-full min-h-screen bg-slate-50 dark:bg-[#0F172A] flex flex-col items-center">
@@ -186,123 +156,7 @@ export function Setup({
               </div>
             </section>
 
-            {/* Brothers Database */}
-            <section className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <h2 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                  <Users className="w-4 h-4 text-[#295E9F] dark:text-[#4A6CA7]" />
-                  Base de Publicadores ({settings.brothers.length})
-                </h2>
-                
-                <button
-                  type="button"
-                  onClick={() => setIsBatchModalOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#295E9F]/10 hover:bg-[#295E9F]/20 text-[#295E9F] dark:text-[#688EC9] border border-[#295E9F]/20 hover:border-[#295E9F]/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  Lançar em Formato Texto
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input 
-                    type="text" 
-                    value={newBrotherName}
-                    onChange={(e) => setNewBrotherName(e.target.value)}
-                    placeholder="Adicionar nome..."
-                    className="flex-1 bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[#295E9F] focus:ring-1 focus:ring-[#295E9F]"
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddManual()}
-                  />
-                  <select
-                    value={newBrotherRole}
-                    onChange={(e) => setNewBrotherRole(e.target.value as Role)}
-                    className="bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[#295E9F] focus:ring-1 focus:ring-[#295E9F]"
-                  >
-                    <option value="Publicador">Publicador</option>
-                    <option value="Servo Ministerial">Servo Ministerial</option>
-                    <option value="Ancião">Ancião</option>
-                  </select>
-                  <button 
-                    onClick={handleAddManual}
-                    className="min-h-[44px] bg-[#295E9F] hover:bg-[#3474C2] text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center justify-center cursor-pointer shadow-sm"
-                  >
-                    Adicionar
-                  </button>
-                </div>
 
-                <div className="max-h-[300px] overflow-y-auto space-y-1 bg-slate-50 dark:bg-[#0F172A] p-2 rounded-2xl border border-slate-200 dark:border-slate-800">
-                  {settings.brothers.map(b => (
-                    <div key={b.id} className="flex flex-col p-3 hover:bg-white dark:hover:bg-[#1E293B] rounded-xl group transition-colors border-b border-slate-200/60 dark:border-slate-800/60 last:border-0">
-                      {editingBrotherId === b.id ? (
-                        <div className="flex flex-col sm:flex-row gap-3 w-full">
-                          <input 
-                            type="text" 
-                            value={editName}
-                            onChange={e => setEditName(e.target.value)}
-                            className="flex-1 bg-slate-50 dark:bg-[#0F172A] border border-[#295E9F] text-slate-900 dark:text-white rounded-xl px-3 py-2 text-sm focus:outline-none"
-                            autoFocus
-                            onKeyDown={(e) => e.key === 'Enter' && saveEdit(b.id)}
-                          />
-                          <select
-                            value={editRole}
-                            onChange={e => setEditRole(e.target.value as Role)}
-                            className="bg-slate-50 dark:bg-[#0F172A] border border-[#295E9F] text-slate-900 dark:text-white rounded-xl px-3 py-2 text-sm focus:outline-none"
-                          >
-                            <option value="Publicador">Publicador</option>
-                            <option value="Servo Ministerial">Servo Ministerial</option>
-                            <option value="Ancião">Ancião</option>
-                          </select>
-                          <div className="flex gap-2 shrink-0">
-                            <button onClick={() => saveEdit(b.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white p-2.5 rounded-xl" title="Salvar">
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => setEditingBrotherId(null)} className="bg-slate-700 hover:bg-slate-600 text-white p-2.5 rounded-xl" title="Cancelar">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{b.name}</span>
-                            <span className={cn(
-                              "text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full border",
-                              b.role === 'Ancião' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" :
-                              b.role === 'Servo Ministerial' ? "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20" :
-                              "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20"
-                            )}>
-                              {b.role}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                            <button 
-                              onClick={() => startEditing(b)}
-                              className="text-slate-400 hover:text-[#295E9F] p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                              title="Editar"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => onRemoveBrother(b.id)}
-                              className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
-                              title="Excluir"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {settings.brothers.length === 0 && (
-                    <div className="p-6 text-center text-slate-500 text-sm">
-                      Nenhum publicador cadastrado. Use o campo acima ou o botão "Lançar em Formato Texto".
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
           </div>
         )}
 
@@ -667,22 +521,11 @@ export function Setup({
           <AnalyticsCharts
             archivedMeetings={archivedMeetings}
             knownBrothers={settings.brothers}
-            onLoadSampleData={onLoadSampleData}
-            onClearSampleData={onClearSampleData}
             onViewMeeting={onViewArchivedMeeting}
           />
         )}
       </div>
 
-      {/* Modal de Lançamento em Formato Texto de Publicadores */}
-      <BatchBrothersModal
-        isOpen={isBatchModalOpen}
-        existingBrothers={settings.brothers}
-        onClose={() => setIsBatchModalOpen(false)}
-        onAddBrothers={(newBrothers) => {
-          onAddBrothersBatch(newBrothers);
-        }}
-      />
 
       {/* Modal de Importação Mensal de PDF */}
       <ImportApostilaModal
@@ -722,10 +565,10 @@ export function Setup({
           ) : (
             <button 
               onClick={onStart}
-              className="w-full min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white font-black tracking-widest uppercase text-lg rounded-2xl shadow-lg shadow-[#295E9F]/30 transition-all flex items-center justify-center gap-3 active:scale-[0.99] cursor-pointer"
+              className="w-full min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white font-black tracking-widest uppercase text-lg rounded-2xl shadow-lg shadow-[#295E9F]/30 transition-all flex items-center justify-center gap-3 active:scale-[0.99] cursor-pointer animate-pulse-attention"
             >
-              <Play className="w-6 h-6 fill-current" />
-              INICIAR REUNIÃO AO VIVO
+              <Play className="w-6 h-6 fill-current animate-pulse" />
+              INICIAR REUNIÃO
             </button>
           )}
         </div>

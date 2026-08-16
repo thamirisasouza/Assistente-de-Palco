@@ -24,9 +24,12 @@ import {
 
 const STORAGE_SETTINGS_KEY = 'jw_stage_settings';
 const STORAGE_ACTIVE_SESSION_KEY = 'jw_stage_active_session';
-const STORAGE_ARCHIVE_KEY = 'jw_stage_meetings_archive';
 
 export function useMeetingTimer() {
+  // Garantir a exclusão completa de qualquer histórico local anterior que possa ter ficado no navegador
+  useEffect(() => {
+    localStorage.removeItem('jw_stage_meetings_archive');
+  }, []);
   const [firebaseStatus, setFirebaseStatus] = useState<'synced' | 'syncing' | 'offline'>('syncing');
 
   // Settings
@@ -71,16 +74,10 @@ export function useMeetingTimer() {
     saveFirebaseSettings(settings).catch(() => {});
   }, [settings]);
 
-  // Archive of completed meetings
-  const [archivedMeetings, setArchivedMeetings] = useState<CompletedMeeting[]>(() => {
-    const saved = localStorage.getItem(STORAGE_ARCHIVE_KEY);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return [];
-  });
+  // Archive of completed meetings - strictly backed by Cloud Firestore
+  const [archivedMeetings, setArchivedMeetings] = useState<CompletedMeeting[]>([]);
 
-  // Carregar dados iniciais e sincronizar com o Firebase
+  // Carregar dados oficiais e sincronizar estritamente com o Firebase
   useEffect(() => {
     let isMounted = true;
 
@@ -88,7 +85,7 @@ export function useMeetingTimer() {
       try {
         setFirebaseStatus('syncing');
         
-        // 1. Sincronizar configurações
+        // 1. Sincronizar configurações da congregação
         const remoteSettings = await fetchFirebaseSettings();
         if (remoteSettings && isMounted) {
           if (remoteSettings.name || remoteSettings.brothers?.length) {
@@ -96,32 +93,17 @@ export function useMeetingTimer() {
             localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(remoteSettings));
           }
         } else if (settings && isMounted) {
-          // Salva as configurações locais se ainda não existirem no Firebase
           await saveFirebaseSettings(settings);
         }
 
-        // 2. Sincronizar histórico de reuniões
+        // 2. Sincronizar histórico de reuniões: mantém SOMENTE o que existe no banco de dados oficial
         const remoteMeetings = await fetchFirebaseMeetings();
-        if (remoteMeetings && remoteMeetings.length > 0 && isMounted) {
-          setArchivedMeetings(prev => {
-            // Mescla reuniões locais com as do Firebase sem duplicar
-            const idMap = new Map<string, CompletedMeeting>();
-            prev.forEach(m => idMap.set(m.id, m));
-            remoteMeetings.forEach(m => idMap.set(m.id, m));
-            const merged = Array.from(idMap.values()).sort(
-              (a, b) => new Date(b.encerrada_em || b.iniciada_em || 0).getTime() - new Date(a.encerrada_em || a.iniciada_em || 0).getTime()
-            );
-            localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(merged));
-            return merged;
-          });
-        } else if (archivedMeetings.length > 0) {
-          // Se o Firebase estiver vazio e houver reuniões locais, envia para a nuvem
-          for (const m of archivedMeetings) {
-            await saveFirebaseMeeting(m);
-          }
+        if (isMounted) {
+          // Filtra demos caso algum tenha sido salvo anteriormente
+          const cleanRemote = (remoteMeetings || []).filter(m => !m.id.startsWith('demo-'));
+          setArchivedMeetings(cleanRemote);
+          setFirebaseStatus('synced');
         }
-
-        if (isMounted) setFirebaseStatus('synced');
       } catch (err) {
         console.warn("Firebase sync notice:", err);
         if (isMounted) setFirebaseStatus('synced');
@@ -130,19 +112,11 @@ export function useMeetingTimer() {
 
     syncWithFirebase();
 
-    // Inscrição em tempo real para novas reuniões salvas
+    // Inscrição em tempo real para sincronização com o banco de dados oficial
     const unsubscribe = subscribeToFirebaseMeetings((liveMeetings) => {
-      if (!isMounted || !liveMeetings || liveMeetings.length === 0) return;
-      setArchivedMeetings(prev => {
-        const idMap = new Map<string, CompletedMeeting>();
-        prev.forEach(m => idMap.set(m.id, m));
-        liveMeetings.forEach(m => idMap.set(m.id, m));
-        const merged = Array.from(idMap.values()).sort(
-          (a, b) => new Date(b.encerrada_em || b.iniciada_em || 0).getTime() - new Date(a.encerrada_em || a.iniciada_em || 0).getTime()
-        );
-        localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(merged));
-        return merged;
-      });
+      if (!isMounted) return;
+      const cleanLive = (liveMeetings || []).filter(m => !m.id.startsWith('demo-'));
+      setArchivedMeetings(cleanLive);
       setFirebaseStatus('synced');
     });
 
@@ -153,48 +127,13 @@ export function useMeetingTimer() {
   }, []);
 
   const saveToArchive = (meeting: CompletedMeeting) => {
-    setArchivedMeetings(prev => {
-      const updated = [meeting, ...prev.filter(m => m.id !== meeting.id)];
-      localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    // Salva no Firebase
+    // Apenas salva no Firebase, o realtime listener (subscribeToFirebaseMeetings) atualizará a lista local
     saveFirebaseMeeting(meeting).catch(e => console.error("Error saving meeting to Firebase:", e));
   };
 
   const deleteFromArchive = (id: string) => {
-    setArchivedMeetings(prev => {
-      const updated = prev.filter(m => m.id !== id);
-      localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    // Remove do Firebase
+    // Remove do Firebase, o realtime listener (subscribeToFirebaseMeetings) atualizará a lista local
     deleteFirebaseMeeting(id).catch(e => console.error("Error deleting meeting from Firebase:", e));
-  };
-
-  const saveMockMeetings = (meetings: CompletedMeeting[]) => {
-    setArchivedMeetings(prev => {
-      const existingNonDemo = prev.filter(m => !m.id.startsWith('demo-'));
-      const updated = [...meetings, ...existingNonDemo];
-      localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    // Sincroniza demonstrações no Firebase também se desejado
-    meetings.forEach(m => {
-      saveFirebaseMeeting(m).catch(() => {});
-    });
-  };
-
-  const clearMockMeetings = () => {
-    const demosToDelete = archivedMeetings.filter(m => m.id.startsWith('demo-'));
-    setArchivedMeetings(prev => {
-      const updated = prev.filter(m => !m.id.startsWith('demo-'));
-      localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    demosToDelete.forEach(m => {
-      deleteFirebaseMeeting(m.id).catch(() => {});
-    });
   };
 
   // State
@@ -679,8 +618,6 @@ export function useMeetingTimer() {
     viewArchivedMeeting,
     viewArchiveList,
     deleteFromArchive,
-    saveMockMeetings,
-    clearMockMeetings,
     firebaseStatus,
     updateSettings,
     updateBrother,
