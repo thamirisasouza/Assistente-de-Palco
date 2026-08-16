@@ -106,7 +106,7 @@ export function AnalyticsCharts({
               Aguardando Reuniões Gravadas
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              O histórico está conectado à sua base de dados oficial. Conforme as reuniões forem concluídas no cronômetro, as análises de pontualidade e os gráficos de cada irmão serão gerados automaticamente.
+              O histórico está sincronizado em tempo real. Conforme as reuniões forem concluídas no cronômetro, as análises de pontualidade e os gráficos de cada irmão serão gerados automaticamente.
             </p>
           </div>
         </div>

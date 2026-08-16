@@ -83,26 +83,6 @@ export function Setup({
         <header className="mb-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
             <div>
-              <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] border border-[#295E9F]/20">
-                  1h 45m • Tempo Padrão
-                </div>
-                <div className={cn(
-                  "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border transition-all",
-                  firebaseStatus === 'synced'
-                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25"
-                    : firebaseStatus === 'syncing'
-                    ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25"
-                    : "bg-slate-500/10 text-slate-700 dark:text-slate-400 border-slate-500/25"
-                )}>
-                  <span className={cn(
-                    "w-1.5 h-1.5 rounded-full",
-                    firebaseStatus === 'synced' ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
-                  )} />
-                  <Cloud className="w-3 h-3" />
-                  <span>{firebaseStatus === 'synced' ? 'Nuvem Conectada (assistentedepalcojw)' : 'Sincronizando Nuvem...'}</span>
-                </div>
-              </div>
               <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                 Assistente de Palco
               </h1>
@@ -155,29 +135,6 @@ export function Setup({
 
         {activeTab === 'congregacao' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-400">
-            {/* Cloud Database Status Banner */}
-            <section className="bg-gradient-to-r from-[#295E9F]/10 via-[#295E9F]/5 to-transparent border border-[#295E9F]/20 rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-[#295E9F] text-white flex items-center justify-center font-bold shrink-0 shadow-md">
-                  <Cloud className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Base de Dados Oficial em Nuvem</h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-                      Conectado
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 font-mono">
-                    Projeto Firebase: <strong className="text-slate-800 dark:text-slate-200">assistentedepalcojw</strong>
-                  </p>
-                </div>
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Sincronização em tempo real ativada
-              </div>
-            </section>
-
             {/* Configurações da Reunião / Congregação */}
             <section className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5">
               <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -359,80 +316,6 @@ export function Setup({
 
         {activeTab === 'programacao' && (
           <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-400">
-            {/* Seção Ocultável: Importar PDF da Programação do Mês */}
-            <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm transition-all">
-              {/* Cabeçalho Clicável para Mostrar / Ocultar */}
-              <button
-                type="button"
-                onClick={() => setIsPdfSectionOpen(!isPdfSectionOpen)}
-                className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
-                aria-expanded={isPdfSectionOpen}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] flex items-center justify-center shrink-0">
-                    <BookOpen className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                        Importar PDF da Programação do Mês
-                      </h3>
-                      {importedWeekLabel ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          ✅ Aplicada: {importedWeekLabel}
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                          Opcional
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      {isPdfSectionOpen 
-                        ? "Clique para ocultar o painel de importação" 
-                        : "Clique para abrir e enviar o arquivo PDF da congregação"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs font-bold text-[#295E9F] dark:text-[#4A6CA7] hidden sm:inline">
-                    {isPdfSectionOpen ? "Ocultar" : "Mostrar"}
-                  </span>
-                  <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center">
-                    {isPdfSectionOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </div>
-                </div>
-              </button>
-
-              {/* Conteúdo Expandido */}
-              {isPdfSectionOpen && (
-                <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 dark:border-slate-800/80 space-y-4 animate-in fade-in duration-200">
-                  <div className="p-4 bg-slate-50 dark:bg-[#0F172A] rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium">
-                        Envie o arquivo PDF da programação mensal da congregação. O sistema preenche automaticamente todos os temas, oradores, leitores e cânticos.
-                      </p>
-                      {importedWeekLabel && (
-                        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                          Programação atual carregada: {importedWeekLabel}
-                        </p>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsImportModalOpen(true)}
-                      className="min-h-[48px] px-6 bg-[#295E9F] hover:bg-[#3474C2] text-white rounded-2xl font-bold text-xs sm:text-sm shadow-md shadow-[#295E9F]/20 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer w-full sm:w-auto"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      {importedWeekLabel ? "Reimportar / Trocar Semana" : "Selecionar Arquivo PDF (.pdf)"}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Tipo de Reunião / Semana */}
             <div className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1.5">
               <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
