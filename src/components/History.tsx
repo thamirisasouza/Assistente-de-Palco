@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { CompletedMeeting, PartRecord, TOTAL_PLANNED_MEETING_MINUTES } from '../types';
+import { CompletedMeeting, PartRecord, TOTAL_PLANNED_MEETING_MINUTES, Brother } from '../types';
 import { formatTime, formatTimeHours, getBalanceColorClass, formatBalanceDisplay, cn } from '../lib/utils';
 import { exportMeetingToPdf } from '../lib/pdfExporter';
+import { AnalyticsCharts } from './AnalyticsCharts';
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -27,21 +28,27 @@ import {
 interface HistoryProps {
   meeting?: CompletedMeeting;
   archivedMeetings: CompletedMeeting[];
+  knownBrothers?: Brother[];
   onNewMeeting: () => void;
   onSelectMeeting: (m: CompletedMeeting) => void;
   onDeleteMeeting: (id: string) => void;
+  onLoadSampleData?: (samples: CompletedMeeting[]) => void;
+  onClearSampleData?: () => void;
 }
 
 export function History({ 
   meeting, 
   archivedMeetings, 
+  knownBrothers = [],
   onNewMeeting, 
   onSelectMeeting, 
-  onDeleteMeeting 
+  onDeleteMeeting,
+  onLoadSampleData,
+  onClearSampleData
 }: HistoryProps) {
   const [copied, setCopied] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [activeTab, setActiveTab] = useState<'resumo' | 'grafico' | 'arquivo'>('resumo');
+  const [activeTab, setActiveTab] = useState<'resumo' | 'arquivo' | 'graficos'>('resumo');
 
   // Selected meeting to display, fallback to first in archive
   const activeMeeting = meeting || archivedMeetings[0];
@@ -68,9 +75,14 @@ export function History({
     );
   }
 
-  const partsOnTime = activeMeeting.partes.filter(p => p.status === 'No tempo').length;
-  const partsExceeded = activeMeeting.partes.filter(p => p.status === 'Excedido').length;
-  const partsUnderTime = activeMeeting.partes.filter(p => p.status === 'Abaixo do tempo').length;
+  const isPartOnTime = (p: { status?: string; actualTime: number; plannedTime: number }) => {
+    if (p.status === 'No tempo correto' || p.status === 'No tempo') return true;
+    if (p.status === 'Excedido') return false;
+    return p.actualTime <= (p.plannedTime * 60);
+  };
+
+  const partsOnTime = activeMeeting.partes.filter(isPartOnTime).length;
+  const partsExceeded = activeMeeting.partes.length - partsOnTime;
 
   const balanceColors = getBalanceColorClass(activeMeeting.saldo_final_segundos);
 
@@ -90,25 +102,42 @@ export function History({
   // Copy formatted report for WhatsApp
   const handleCopyReport = () => {
     const lines = [
-      `📊 *RELATÓRIO DE REUNIÃO — NOSSA VIDA E MINISTÉRIO CRISTÃO*`,
+      `📊 *RELATÓRIO DE REUNIÃO*`,
       `📅 *Data:* ${activeMeeting.data_formatada}`,
       `🏛️ *Congregação:* ${activeMeeting.congregacao}`,
       `👤 *Presidente:* ${activeMeeting.presidente}`,
-      `🏷️ *Semana:* ${activeMeeting.tipo_semana}`,
+      ...(activeMeeting.tipo_semana !== 'Normal' ? [`🏷️ *Modalidade:* ${activeMeeting.tipo_semana}`] : []),
       ``,
       `⏱️ *Duração Real:* ${activeMeeting.duracao_real_minutos} min (Planejado: ${activeMeeting.duracao_planejada_minutos} min)`,
       `⚖️ *Saldo Final:* ${formatBalanceDisplay(activeMeeting.saldo_final_segundos)}`,
-      `📈 *Partes no Tempo:* ${partsOnTime}/${activeMeeting.partes.length} (${Math.round((partsOnTime / Math.max(1, activeMeeting.partes.length)) * 100)}%)`,
+      `📈 *Partes no Tempo Correto:* ${partsOnTime}/${activeMeeting.partes.length} (${Math.round((partsOnTime / Math.max(1, activeMeeting.partes.length)) * 100)}%)`,
       ``,
       `*DETALHAMENTO DAS PARTES:*`,
-      ...activeMeeting.partes.map((p, idx) => {
-        const speakerStr = p.hideSpeaker ? '' : ` — ${p.speaker || 'Sem orador'}${p.assistant ? ` c/ ${p.assistant}` : ''}`;
-        const timeStr = `${Math.round(p.actualTime / 60)}m (prev. ${p.plannedTime}m)`;
-        const statusEmoji = p.status === 'No tempo' ? '✅' : p.status === 'Excedido' ? '⚠️' : '🔵';
-        return `${idx + 1}. ${p.title}${speakerStr} | ${timeStr} ${statusEmoji}`;
+      `---------------------------------`,
+      ...activeMeeting.partes.map((p) => {
+        let speakerStr = '';
+        if (!p.hideSpeaker && p.speaker && !p.title.toLowerCase().includes(p.speaker.toLowerCase())) {
+          speakerStr = `\n${p.speaker}`;
+          if (p.assistant && !p.title.toLowerCase().includes(p.assistant.toLowerCase())) {
+            speakerStr += ` c/ ${p.assistant}`;
+          }
+        }
+
+        const diffSeconds = p.actualTime - (p.plannedTime * 60);
+        const isOver = p.status === 'Excedido' || diffSeconds > 0;
+        const timeFormatted = formatTime(p.actualTime);
+        const diffFormatted = formatTime(Math.abs(diffSeconds));
+        
+        const statusDetail = isOver 
+          ? `(Ultrapassou) ${diffFormatted}\n(Excedido)`
+          : `(Sobra de tempo) ${diffFormatted}\nNo tempo correto`;
+
+        const numberPrefix = p.partNumber != null ? `${p.partNumber}\n` : '';
+
+        return `${numberPrefix}${p.title}${speakerStr}\n\n${timeFormatted} / ${p.plannedTime}m\n${statusDetail}\n-------`;
       }),
       ``,
-      `_Gerado pelo Assistente de Palco S-38-T_`
+      `_Relatório Oficial gerado pelo Assistente de Palco_`
     ];
 
     navigator.clipboard.writeText(lines.join('\n'));
@@ -132,7 +161,7 @@ export function History({
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
-              Resumo & Relatório S-38-T
+              Resumo & Relatório da Reunião
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {activeMeeting.data_formatada} • {activeMeeting.congregacao}
@@ -153,17 +182,6 @@ export function History({
               <FileText className="w-4 h-4" /> Resumo
             </button>
             <button
-              onClick={() => setActiveTab('grafico')}
-              className={cn(
-                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                activeTab === 'grafico' 
-                  ? "bg-[#295E9F] text-white shadow-sm" 
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              )}
-            >
-              <BarChart3 className="w-4 h-4" /> Gráfico
-            </button>
-            <button
               onClick={() => setActiveTab('arquivo')}
               className={cn(
                 "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
@@ -174,36 +192,49 @@ export function History({
             >
               <Calendar className="w-4 h-4" /> Arquivo ({archivedMeetings.length})
             </button>
+            <button
+              onClick={() => setActiveTab('graficos')}
+              className={cn(
+                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+                activeTab === 'graficos' 
+                  ? "bg-[#295E9F] text-white shadow-sm" 
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              <BarChart3 className="w-4 h-4" /> Gráficos
+            </button>
           </div>
         </header>
 
-        {/* Metadados da Reunião */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Presidente</span>
-            <p className="text-base font-bold text-slate-800 dark:text-slate-100 truncate mt-0.5">
-              {activeMeeting.presidente}
-            </p>
+        {/* Metadados da Reunião (visíveis nas abas resumo e arquivo) */}
+        {activeTab !== 'graficos' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Presidente</span>
+              <p className="text-base font-bold text-slate-800 dark:text-slate-100 truncate mt-0.5">
+                {activeMeeting.presidente}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Duração Real</span>
+              <p className="text-xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-0.5">
+                {activeMeeting.duracao_real_minutos} min <span className="text-xs text-slate-400 font-normal">/ {activeMeeting.duracao_planejada_minutos}m</span>
+              </p>
+            </div>
+            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Saldo Final</span>
+              <p className={cn("text-xl font-bold font-mono mt-0.5", balanceColors.text)}>
+                {formatBalanceDisplay(activeMeeting.saldo_final_segundos)}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Partes no Tempo Correto</span>
+              <p className="text-xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-0.5">
+                {partsOnTime} <span className="text-xs text-slate-400 font-normal">de {activeMeeting.partes.length}</span>
+              </p>
+            </div>
           </div>
-          <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Duração Real</span>
-            <p className="text-xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-0.5">
-              {activeMeeting.duracao_real_minutos} min <span className="text-xs text-slate-400 font-normal">/ {activeMeeting.duracao_planejada_minutos}m</span>
-            </p>
-          </div>
-          <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Saldo Final</span>
-            <p className={cn("text-xl font-bold font-mono mt-0.5", balanceColors.text)}>
-              {formatBalanceDisplay(activeMeeting.saldo_final_segundos)}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Partes no Tempo</span>
-            <p className="text-xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-0.5">
-              {partsOnTime} <span className="text-xs text-slate-400 font-normal">de {activeMeeting.partes.length}</span>
-            </p>
-          </div>
-        </div>
+        )}
 
         {/* TAB 1: RESUMO DETALHADO */}
         {activeTab === 'resumo' && (
@@ -211,7 +242,7 @@ export function History({
             <div className="flex flex-wrap gap-2 justify-between items-center bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">Registro Detalhado por Parte</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Tempos reais registrados para consulta do Superintendente (§26).</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Tempos reais registrados para consulta do Superintendente.</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
@@ -237,16 +268,21 @@ export function History({
             <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
               {activeMeeting.partes.map((p, index) => {
                 const diffSeconds = p.actualTime - (p.plannedTime * 60);
-                const isOver = diffSeconds > 15;
-                const isUnder = diffSeconds < -15;
+                const isExceeded = p.status === 'Excedido' || diffSeconds > 0;
 
                 return (
                   <div key={index} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-mono text-xs flex items-center justify-center font-bold">
-                          {index + 1}
-                        </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {p.partNumber != null ? (
+                          <span className="px-2 py-0.5 rounded-md bg-[#295E9F]/10 dark:bg-[#295E9F]/25 text-[#295E9F] dark:text-[#688EC9] font-mono text-xs flex items-center justify-center font-black border border-[#295E9F]/30">
+                            Nº {p.partNumber}
+                          </span>
+                        ) : (
+                          <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 font-mono text-xs flex items-center justify-center font-bold">
+                            •
+                          </span>
+                        )}
                         <h4 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
                           {p.title}
                         </h4>
@@ -267,19 +303,19 @@ export function History({
                         </div>
                         <span className={cn(
                           "text-[10px] font-bold",
-                          isOver ? "text-amber-500" : isUnder ? "text-sky-500" : "text-emerald-500"
+                          isExceeded ? "text-red-500" : "text-emerald-500"
                         )}>
                           {diffSeconds > 0 ? `+${formatTime(diffSeconds)}` : diffSeconds < 0 ? `-${formatTime(Math.abs(diffSeconds))}` : "00:00"}
                         </span>
                       </div>
 
                       <span className={cn(
-                        "px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-xl shrink-0 border flex items-center gap-1.5 font-mono",
-                        p.status === 'No tempo' && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
-                        p.status === 'Excedido' && "bg-red-500 text-white border-red-600 shadow-sm font-black",
-                        p.status === 'Abaixo do tempo' && "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30",
+                        "px-3 py-1 text-xs uppercase tracking-wider rounded-xl shrink-0 border flex items-center gap-1.5 font-mono font-bold",
+                        isExceeded 
+                          ? "bg-red-500 text-white border-red-600 shadow-sm font-black" 
+                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                       )}>
-                        {p.status === 'Excedido' ? `${formatTime(p.actualTime)} (Excedido)` : p.status}
+                        {isExceeded ? `${formatTime(p.actualTime)} (Excedido)` : "No tempo correto"}
                       </span>
                     </div>
                   </div>
@@ -289,96 +325,7 @@ export function History({
           </div>
         )}
 
-        {/* TAB 2: GRÁFICO COMPARATIVO (RF08 - Planejado vs Real por Parte) */}
-        {activeTab === 'grafico' && (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-[#1E293B] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-[#295E9F] dark:text-[#4A6CA7]" />
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                  Comparativo de Tempo: Planejado vs. Real
-                </h3>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Identifique rapidamente desvios e padrões para ajudar os oradores na gestão do tempo.
-              </p>
-              
-              <div className="flex items-center gap-6 pt-2 text-xs font-bold">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-slate-300 dark:bg-slate-700"></div>
-                  <span className="text-slate-600 dark:text-slate-400">Tempo Planejado</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-[#295E9F] dark:bg-[#4A6CA7]"></div>
-                  <span className="text-slate-600 dark:text-slate-400">Tempo Real</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-[#1E293B] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-              {activeMeeting.partes.map((p, idx) => {
-                const plannedSeconds = p.plannedTime * 60;
-                const actualSeconds = p.actualTime;
-                const maxScaleSeconds = Math.max(plannedSeconds, actualSeconds, 1800); // at least 30m scale
-                
-                const plannedWidthPct = Math.min(100, (plannedSeconds / maxScaleSeconds) * 100);
-                const actualWidthPct = Math.min(100, (actualSeconds / maxScaleSeconds) * 100);
-                const diffSeconds = actualSeconds - plannedSeconds;
-
-                return (
-                  <div key={idx} className="space-y-1.5">
-                    <div className="flex justify-between items-baseline text-xs">
-                      <span className="font-bold text-slate-800 dark:text-slate-200 truncate pr-2">
-                        {idx + 1}. {p.title}
-                      </span>
-                      <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
-                        {formatTime(actualSeconds)} <span className="text-[10px]">/ {p.plannedTime}m</span>
-                      </span>
-                    </div>
-
-                    {/* Dual comparative bar */}
-                    <div className="space-y-1">
-                      {/* Planejado */}
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-slate-300 dark:bg-slate-700 h-full rounded-full transition-all"
-                          style={{ width: `${plannedWidthPct}%` }}
-                          title={`Planejado: ${p.plannedTime} min`}
-                        />
-                      </div>
-
-                      {/* Real */}
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-3.5 rounded-full overflow-hidden">
-                        <div 
-                          className={cn(
-                            "h-full rounded-full transition-all flex items-center justify-end pr-1.5",
-                            p.status === 'Excedido' ? "bg-amber-500" :
-                            p.status === 'Abaixo do tempo' ? "bg-sky-500" :
-                            "bg-[#295E9F] dark:bg-[#4A6CA7]"
-                          )}
-                          style={{ width: `${actualWidthPct}%` }}
-                          title={`Real: ${formatTime(actualSeconds)}`}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                      <span>{p.speaker || "Sem orador"}</span>
-                      <span className={cn(
-                        "font-bold",
-                        diffSeconds > 15 ? "text-amber-500" : diffSeconds < -15 ? "text-sky-500" : "text-emerald-500"
-                      )}>
-                        {diffSeconds > 0 ? `+${formatTime(diffSeconds)} de atraso` : diffSeconds < 0 ? `-${formatTime(Math.abs(diffSeconds))} adiantado` : "Exato no tempo"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: ARQUIVO HISTÓRICO DE REUNIÕES */}
+        {/* TAB 2: ARQUIVO HISTÓRICO DE REUNIÕES */}
         {activeTab === 'arquivo' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap gap-2 justify-between items-center">
@@ -467,6 +414,20 @@ export function History({
               })}
             </div>
           </div>
+        )}
+
+        {/* TAB 3: GRÁFICOS & PADRÕES DE PONTUALIDADE */}
+        {activeTab === 'graficos' && (
+          <AnalyticsCharts
+            archivedMeetings={archivedMeetings}
+            knownBrothers={knownBrothers}
+            onLoadSampleData={onLoadSampleData}
+            onClearSampleData={onClearSampleData}
+            onViewMeeting={(m) => {
+              onSelectMeeting(m);
+              setActiveTab('resumo');
+            }}
+          />
         )}
       </div>
 

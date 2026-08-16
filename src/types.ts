@@ -1,6 +1,11 @@
 export type Role = 'Ancião' | 'Servo Ministerial' | 'Publicador';
 
-export type WeekType = 'Normal' | 'Visita do SC' | 'Semana de Assembleia';
+export type WeekType = 
+  | 'Normal' 
+  | 'Visita do SC (Semana)' 
+  | 'Visita do SC (Final de Semana)' 
+  | 'Fim de Semana Normal' 
+  | 'Semana de Assembleia';
 
 export interface Brother {
   id: string;
@@ -20,6 +25,7 @@ export interface CongregationSettings {
 export interface MeetingPart {
   id: string;
   title: string;
+  partNumber?: number; // Número oficial da parte conforme aparece no PDF/Apostila (1, 2, 3, etc.) ou undefined se for cântico/comentários
   plannedTime: number; // in minutes
   flexible: boolean; // if true, can be reduced to absorb delays
   hasCounsel: boolean; // if true, adds a 1-min counsel block after
@@ -29,11 +35,12 @@ export interface MeetingPart {
   assistant?: string;
 }
 
-export type PartResultStatus = 'No tempo' | 'Excedido' | 'Abaixo do tempo';
+export type PartResultStatus = 'No tempo correto' | 'Excedido' | 'No tempo' | 'Abaixo do tempo';
 
 export interface PartRecord {
   id: string;
   title: string;
+  partNumber?: number; // Número oficial da parte conforme aparece no PDF/Apostila
   speaker?: string;
   assistant?: string;
   hideSpeaker?: boolean;
@@ -122,20 +129,76 @@ export const DEFAULT_BROTHERS: Brother[] = rawBrothers.map((name, index) => ({
   role: name.includes('Silva') || name.includes('Ferreira') || name.includes('Moraes') ? 'Ancião' : 'Publicador'
 }));
 
-export const DEFAULT_PARTS: MeetingPart[] = [
-  { id: "abertura", title: "Cântico e Oração Iniciais", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: true },
+// Meio de Semana Normal (Padrão 105 min - Numeração oficial da Apostila / PDF)
+export const DEFAULT_PARTS_NORMAL: MeetingPart[] = [
+  { id: "abertura", title: "Cântico e Oração Iniciais", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: false },
   { id: "comentarios", title: "Comentários Iniciais", plannedTime: 1, flexible: false, hasCounsel: false },
-  { id: "discurso", title: "Tesouros: Discurso", plannedTime: 10, flexible: false, hasCounsel: false },
-  { id: "joias", title: "Tesouros: Joias Espirituais", plannedTime: 10, flexible: false, hasCounsel: false },
-  { id: "leitura", title: "Tesouros: Leitura da Bíblia", plannedTime: 4, flexible: false, hasCounsel: true },
-  { id: "ministerio1", title: "Ministério: Parte 1", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
-  { id: "ministerio2", title: "Ministério: Parte 2", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
-  { id: "ministerio3", title: "Ministério: Parte 3", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
+  { id: "discurso", partNumber: 1, title: "Tesouros: Discurso", plannedTime: 10, flexible: false, hasCounsel: false },
+  { id: "joias", partNumber: 2, title: "Tesouros: Joias Espirituais", plannedTime: 10, flexible: false, hasCounsel: false },
+  { id: "leitura", partNumber: 3, title: "Tesouros: Leitura da Bíblia", plannedTime: 4, flexible: false, hasCounsel: true },
+  { id: "ministerio1", partNumber: 4, title: "Ministério: Parte 1", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
+  { id: "ministerio2", partNumber: 5, title: "Ministério: Parte 2", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
+  { id: "ministerio3", partNumber: 6, title: "Ministério: Parte 3", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
   { id: "vida_cantico", title: "Cântico Intermediário", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: true },
-  { id: "vida1", title: "Nossa Vida Cristã: Parte 1", plannedTime: 15, flexible: false, hasCounsel: false },
-  { id: "estudo", title: "Estudo Bíblico de Congregação", plannedTime: 30, flexible: true, hasCounsel: false },
+  { id: "vida1", partNumber: 7, title: "Nossa Vida Cristã: Parte 1", plannedTime: 15, flexible: false, hasCounsel: false },
+  { id: "estudo", partNumber: 8, title: "Estudo Bíblico de Congregação", plannedTime: 30, flexible: true, hasCounsel: false, supportsAssistant: true },
   { id: "comentarios_finais", title: "Comentários Finais", plannedTime: 3, flexible: true, hasCounsel: false },
-  { id: "conclusao_cantico", title: "Cântico e Oração Finais", plannedTime: 6, flexible: false, hasCounsel: false, hideSpeaker: true }
+  { id: "conclusao_cantico", title: "Cântico e Oração Finais", plannedTime: 6, flexible: false, hasCounsel: false, hideSpeaker: false }
 ];
 
+// Meio de Semana com Visita do Superintendente: Discurso do Super no lugar do livro final (105 min)
+export const DEFAULT_PARTS_SC_MIDWEEK: MeetingPart[] = [
+  { id: "abertura", title: "Cântico e Oração Iniciais", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: false },
+  { id: "comentarios", title: "Comentários Iniciais", plannedTime: 1, flexible: false, hasCounsel: false },
+  { id: "discurso", partNumber: 1, title: "Tesouros: Discurso", plannedTime: 10, flexible: false, hasCounsel: false },
+  { id: "joias", partNumber: 2, title: "Tesouros: Joias Espirituais", plannedTime: 10, flexible: false, hasCounsel: false },
+  { id: "leitura", partNumber: 3, title: "Tesouros: Leitura da Bíblia", plannedTime: 4, flexible: false, hasCounsel: true },
+  { id: "ministerio1", partNumber: 4, title: "Ministério: Parte 1", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
+  { id: "ministerio2", partNumber: 5, title: "Ministério: Parte 2", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
+  { id: "ministerio3", partNumber: 6, title: "Ministério: Parte 3", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
+  { id: "vida_cantico", title: "Cântico Intermediário", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: true },
+  { id: "vida1", partNumber: 7, title: "Nossa Vida Cristã: Parte 1", plannedTime: 15, flexible: false, hasCounsel: false },
+  { id: "discurso_sc", partNumber: 8, title: "Discurso de Serviço do Superintendente de Circuito", plannedTime: 30, flexible: true, hasCounsel: false, speaker: "Superintendente de Circuito" },
+  { id: "comentarios_finais", title: "Comentários Finais", plannedTime: 3, flexible: true, hasCounsel: false },
+  { id: "conclusao_cantico", title: "Cântico e Oração Finais (Oração pelo SC)", plannedTime: 6, flexible: false, hasCounsel: false, speaker: "Superintendente de Circuito" }
+];
+
+// Final de Semana com Visita do Superintendente: Discurso inicial / Resumo Sentinela / Discurso final (105 min)
+export const DEFAULT_PARTS_SC_WEEKEND: MeetingPart[] = [
+  { id: "fds_abertura", title: "Cântico e Oração Iniciais", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: false },
+  { id: "fds_discurso_inicial", partNumber: 1, title: "Discurso Público (Superintendente de Circuito)", plannedTime: 30, flexible: false, hasCounsel: false, speaker: "Superintendente de Circuito" },
+  { id: "fds_cantico_meio", title: "Cântico Intermediário", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: true },
+  { id: "fds_resumo_sentinela", partNumber: 2, title: "Resumo de A Sentinela (30 min)", plannedTime: 30, flexible: false, hasCounsel: false, supportsAssistant: true },
+  { id: "fds_discurso_final", partNumber: 3, title: "Discurso de Serviço / Final (Superintendente de Circuito)", plannedTime: 30, flexible: true, hasCounsel: false, speaker: "Superintendente de Circuito" },
+  { id: "fds_conclusao", title: "Cântico e Oração Finais (Oração pelo SC)", plannedTime: 5, flexible: false, hasCounsel: false, speaker: "Superintendente de Circuito" }
+];
+
+// Final de Semana Normal (105 min)
+export const DEFAULT_PARTS_WEEKEND_NORMAL: MeetingPart[] = [
+  { id: "fds_abertura", title: "Cântico e Oração Iniciais", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: false },
+  { id: "fds_discurso_inicial", partNumber: 1, title: "Discurso Público (30 min)", plannedTime: 30, flexible: false, hasCounsel: false },
+  { id: "fds_cantico_meio", title: "Cântico Intermediário", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: true },
+  { id: "fds_estudo_sentinela", partNumber: 2, title: "Estudo de A Sentinela (60 min)", plannedTime: 60, flexible: true, hasCounsel: false, supportsAssistant: true },
+  { id: "fds_conclusao", title: "Cântico e Oração Finais", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: false }
+];
+
+export const DEFAULT_PARTS = DEFAULT_PARTS_NORMAL;
+
+export function getPartsForWeekType(weekType: WeekType): MeetingPart[] {
+  switch (weekType) {
+    case 'Visita do SC (Semana)':
+      return JSON.parse(JSON.stringify(DEFAULT_PARTS_SC_MIDWEEK));
+    case 'Visita do SC (Final de Semana)':
+      return JSON.parse(JSON.stringify(DEFAULT_PARTS_SC_WEEKEND));
+    case 'Fim de Semana Normal':
+      return JSON.parse(JSON.stringify(DEFAULT_PARTS_WEEKEND_NORMAL));
+    case 'Semana de Assembleia':
+      return [];
+    case 'Normal':
+    default:
+      return JSON.parse(JSON.stringify(DEFAULT_PARTS_NORMAL));
+  }
+}
+
 export const TOTAL_PLANNED_MEETING_MINUTES = 105; // Padrão S-38-T (105 min / 1h 45m)
+

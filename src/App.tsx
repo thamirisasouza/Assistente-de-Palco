@@ -84,6 +84,8 @@ export default function App() {
           state={state}
           settings={timerContext.settings}
           archivedCount={timerContext.archivedMeetings.length}
+          archivedMeetings={timerContext.archivedMeetings}
+          firebaseStatus={timerContext.firebaseStatus}
           onUpdatePart={timerContext.updatePart}
           onApplyAllParts={timerContext.setAllParts}
           onStart={timerContext.startMeeting}
@@ -93,6 +95,9 @@ export default function App() {
           onAddBrothersBatch={timerContext.addBrothersBatch}
           onRemoveBrother={timerContext.removeBrother}
           onViewArchive={timerContext.viewArchiveList}
+          onLoadSampleData={timerContext.saveMockMeetings}
+          onClearSampleData={timerContext.clearMockMeetings}
+          onViewArchivedMeeting={timerContext.viewArchivedMeeting}
         />
       )}
       
@@ -118,9 +123,12 @@ export default function App() {
         <History 
           meeting={state.currentMeeting}
           archivedMeetings={timerContext.archivedMeetings}
+          knownBrothers={timerContext.settings.brothers}
           onNewMeeting={timerContext.resetToSetup}
           onSelectMeeting={timerContext.viewArchivedMeeting}
           onDeleteMeeting={timerContext.deleteFromArchive}
+          onLoadSampleData={timerContext.saveMockMeetings}
+          onClearSampleData={timerContext.clearMockMeetings}
         />
       )}
     </div>

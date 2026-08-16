@@ -1,6 +1,7 @@
 {
   "name": "Assistente de Palco",
-  "description": "Cronômetro de alta precisão e gestão da reunião Nossa Vida e Ministério Cristão alinhado às diretrizes S-38-T.",
+  "description": "Cronômetro de alta precisão e gestão das reuniões congregacionais com controle de tempo ao vivo e relatórios.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
+

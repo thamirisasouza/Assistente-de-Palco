@@ -218,7 +218,11 @@ export function MeetingStage({
 
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-[10px] sm:text-[11px] font-mono font-bold bg-black/25 px-2.5 py-0.5 rounded-full text-white backdrop-blur-sm border border-white/15 shadow-sm">
-            Parte {Math.min(state.parts.length, state.currentPartIndex + 1)} de {state.parts.length}
+            {currentPart.partNumber != null ? (
+              `Parte ${currentPart.partNumber} • ${currentSection.shortName}`
+            ) : (
+              currentSection.shortName
+            )}
           </span>
         </div>
       </motion.div>
@@ -234,12 +238,10 @@ export function MeetingStage({
 
             let segmentColor = "bg-slate-300 dark:bg-slate-700 opacity-40"; // Pendente
             if (isCompleted) {
-              if (recorded?.status === 'Excedido') {
-                segmentColor = "bg-amber-500"; // Atraso (Âmbar)
-              } else if (recorded?.status === 'Abaixo do tempo') {
-                segmentColor = "bg-sky-500"; // Adiantado (Azul)
+              if (recorded?.status === 'Excedido' || (recorded && recorded.actualTime > recorded.plannedTime * 60)) {
+                segmentColor = "bg-red-500"; // Excedido (Vermelho)
               } else {
-                segmentColor = "bg-emerald-500"; // No tempo (Verde)
+                segmentColor = "bg-emerald-500"; // No tempo correto (Verde)
               }
             } else if (isCurrent) {
               segmentColor = "ring-2 ring-white ring-offset-1 dark:ring-offset-slate-900 animate-pulse";
@@ -310,12 +312,23 @@ export function MeetingStage({
                           style={isPresent ? { borderColor: group.section.color, ringColor: `${group.section.color}40` } : {}}
                         >
                           <div className="flex justify-between items-center text-xs">
-                            <span className={cn(
-                              "font-bold truncate pr-2",
-                              isPresent ? "text-slate-900 dark:text-white" : "text-slate-700 dark:text-slate-300"
-                            )}>
-                              {part.title}
-                            </span>
+                            <div className="flex items-center gap-1.5 truncate pr-2">
+                              {part.partNumber != null ? (
+                                <span className="w-5 h-5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-mono font-black text-[10px] flex items-center justify-center shrink-0">
+                                  {part.partNumber}
+                                </span>
+                              ) : (
+                                <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-slate-400 dark:text-slate-500 font-mono text-xs">
+                                  •
+                                </span>
+                              )}
+                              <span className={cn(
+                                "font-bold truncate",
+                                isPresent ? "text-slate-900 dark:text-white" : "text-slate-700 dark:text-slate-300"
+                              )}>
+                                {part.title}
+                              </span>
+                            </div>
                             <span className="font-mono text-[11px] shrink-0 text-slate-500 dark:text-slate-400">
                               {part.plannedTime}m
                             </span>
@@ -411,9 +424,12 @@ export function MeetingStage({
                       </>
                     ) : (
                       <>
+                        {currentPart.partNumber != null && (
+                          <span className="bg-black/25 px-2 py-0.5 rounded-md font-mono font-black text-xs">
+                            Nº {currentPart.partNumber}
+                          </span>
+                        )}
                         <span>{currentSection.shortName}</span>
-                        <span className="opacity-60">•</span>
-                        <span>Parte {state.currentPartIndex + 1} de {state.parts.length}</span>
                       </>
                     )}
                   </div>
@@ -501,7 +517,7 @@ export function MeetingStage({
                     "text-lg font-mono font-bold",
                     isOvertime ? "text-red-500" : isWarning ? "text-amber-500" : "text-emerald-500"
                   )}>
-                    {isOvertime ? "Atrasado" : isWarning ? "Atenção" : "No Tempo"}
+                    {isOvertime ? "Excedido" : isWarning ? "Atenção" : "No tempo correto"}
                   </div>
                 </div>
               </div>
@@ -515,6 +531,11 @@ export function MeetingStage({
                 </h3>
                 <div className="bg-white dark:bg-[#1E293B] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
                   <div className="flex items-center gap-2">
+                    {state.parts[state.currentPartIndex + 1].partNumber != null && (
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-mono font-black border border-slate-300 dark:border-slate-700">
+                        Nº {state.parts[state.currentPartIndex + 1].partNumber}
+                      </span>
+                    )}
                     <span 
                       className="px-2 py-0.5 text-white rounded text-[11px] font-mono font-bold"
                       style={{ backgroundColor: getPartSection(state.parts[state.currentPartIndex + 1], state.currentPartIndex + 1).color }}
@@ -621,7 +642,7 @@ export function MeetingStage({
                 Finalizar Reunião Agora?
               </h2>
               <p className="text-sm text-slate-600 dark:text-slate-300">
-                Esta ação encerrará a reunião, gravará o histórico imutável S-38-T das partes realizadas e abrirá o relatório com opção de exportar em PDF.
+                Esta ação encerrará a reunião, gravará o histórico imutável das partes realizadas e abrirá o relatório com opção de exportar em PDF.
               </p>
             </div>
 

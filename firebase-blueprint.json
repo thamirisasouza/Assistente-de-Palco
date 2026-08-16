@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "CongregationSettings": {
+      "title": "CongregationSettings",
+      "description": "Configurações da congregação, irmãos cadastrados e preferências",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 200 },
+        "defaultTime": { "type": "string", "maxLength": 50 },
+        "presidentName": { "type": "string", "maxLength": 200 },
+        "weekType": { "type": "string", "maxLength": 100 },
+        "brothers": {
+          "type": "array",
+          "description": "Lista de irmãos cadastrados com nome e privilégio"
+        },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "brothers"]
+    },
+    "CompletedMeeting": {
+      "title": "CompletedMeeting",
+      "description": "Registro histórico de uma reunião concluída com detalhes de cada parte",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "data_formatada": { "type": "string", "maxLength": 100 },
+        "data_iso": { "type": "string", "maxLength": 100 },
+        "tipo_reuniao": { "type": "string", "maxLength": 100 },
+        "presidente": { "type": "string", "maxLength": 200 },
+        "duracao_planejada_minutos": { "type": "number" },
+        "duracao_real_minutos": { "type": "number" },
+        "duracao_real_segundos": { "type": "number" },
+        "saldo_final_segundos": { "type": "number" },
+        "status_geral": { "type": "string", "maxLength": 50 },
+        "partes": {
+          "type": "array",
+          "description": "Lista de partes realizadas na reunião com tempos e oradores"
+        },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "data_formatada", "presidente", "partes"]
+    }
+  },
+  "firestore": {
+    "/congregations/{congregationId}/settings/current": {
+      "schema": "CongregationSettings",
+      "description": "Documento único contendo as configurações atuais da congregação"
+    },
+    "/congregations/{congregationId}/meetings/{meetingId}": {
+      "schema": "CompletedMeeting",
+      "description": "Histórico arquivado de reuniões da congregação"
+    }
+  }
+}

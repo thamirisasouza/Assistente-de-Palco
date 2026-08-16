@@ -362,11 +362,12 @@ export function applyPdfWeekToMeetingParts(
   currentParts: MeetingPart[], 
   week: ParsedWeekSchedule
 ): MeetingPart[] {
-  const parts = currentParts.map(p => ({ ...p }));
+  let parts = currentParts.map(p => ({ ...p }));
 
   // 1. Cântico e Oração Iniciais
   const cAbertura = parts.find(p => p.id === 'abertura');
   if (cAbertura) {
+    cAbertura.partNumber = undefined;
     if (week.openingSong) {
       cAbertura.title = `${week.openingSong} & Oração Inicial`;
     }
@@ -377,13 +378,17 @@ export function applyPdfWeekToMeetingParts(
 
   // 2. Comentários Iniciais (Presidente)
   const comentIniciais = parts.find(p => p.id === 'comentarios');
-  if (comentIniciais && week.president) {
-    comentIniciais.speaker = week.president;
+  if (comentIniciais) {
+    comentIniciais.partNumber = undefined;
+    if (week.president) {
+      comentIniciais.speaker = week.president;
+    }
   }
 
   // 3. Tesouros - Discurso 10 min
   const discurso = parts.find(p => p.id === 'discurso');
   if (discurso) {
+    discurso.partNumber = 1;
     if (week.treasuresTheme) {
       discurso.title = `Tesouros: ${week.treasuresTheme}`;
     }
@@ -395,6 +400,7 @@ export function applyPdfWeekToMeetingParts(
   // 4. Tesouros - Joias Espirituais 10 min
   const joias = parts.find(p => p.id === 'joias');
   if (joias) {
+    joias.partNumber = 2;
     if (week.spiritualGemsSpeaker) {
       joias.speaker = week.spiritualGemsSpeaker;
     }
@@ -403,6 +409,7 @@ export function applyPdfWeekToMeetingParts(
   // 5. Tesouros - Leitura da Bíblia 4 min
   const leitura = parts.find(p => p.id === 'leitura');
   if (leitura) {
+    leitura.partNumber = 3;
     if (week.bibleReadingSection) {
       leitura.title = `Leitura da Bíblia: ${week.bibleReadingSection}`;
     }
@@ -413,46 +420,88 @@ export function applyPdfWeekToMeetingParts(
 
   // 6. Faça Seu Melhor no Ministério
   const m1 = parts.find(p => p.id === 'ministerio1');
-  if (m1 && week.ministryParts[0]) {
-    m1.title = `Ministério: ${week.ministryParts[0].title}`;
-    m1.plannedTime = week.ministryParts[0].minutes || 4;
-    m1.speaker = week.ministryParts[0].speaker;
-    m1.assistant = week.ministryParts[0].assistant;
+  if (m1) {
+    m1.partNumber = 4;
+    if (week.ministryParts[0]) {
+      m1.title = `Ministério: ${week.ministryParts[0].title}`;
+      m1.plannedTime = week.ministryParts[0].minutes || 4;
+      m1.speaker = week.ministryParts[0].speaker;
+      m1.assistant = week.ministryParts[0].assistant;
+    }
   }
 
   const m2 = parts.find(p => p.id === 'ministerio2');
-  if (m2 && week.ministryParts[1]) {
-    m2.title = `Ministério: ${week.ministryParts[1].title}`;
-    m2.plannedTime = week.ministryParts[1].minutes || 4;
-    m2.speaker = week.ministryParts[1].speaker;
-    m2.assistant = week.ministryParts[1].assistant;
+  if (m2) {
+    m2.partNumber = 5;
+    if (week.ministryParts[1]) {
+      m2.title = `Ministério: ${week.ministryParts[1].title}`;
+      m2.plannedTime = week.ministryParts[1].minutes || 4;
+      m2.speaker = week.ministryParts[1].speaker;
+      m2.assistant = week.ministryParts[1].assistant;
+    }
   }
 
   const m3 = parts.find(p => p.id === 'ministerio3');
-  if (m3 && week.ministryParts[2]) {
-    m3.title = `Ministério: ${week.ministryParts[2].title}`;
-    m3.plannedTime = week.ministryParts[2].minutes || 4;
-    m3.speaker = week.ministryParts[2].speaker;
-    m3.assistant = week.ministryParts[2].assistant;
+  if (m3) {
+    m3.partNumber = 6;
+    if (week.ministryParts[2]) {
+      m3.title = `Ministério: ${week.ministryParts[2].title}`;
+      m3.plannedTime = week.ministryParts[2].minutes || 4;
+      m3.speaker = week.ministryParts[2].speaker;
+      m3.assistant = week.ministryParts[2].assistant;
+    }
   }
 
   // 7. Cântico Intermediário
   const cMeio = parts.find(p => p.id === 'vida_cantico');
-  if (cMeio && week.middleSong) {
-    cMeio.title = `${week.middleSong}`;
+  if (cMeio) {
+    cMeio.partNumber = undefined;
+    if (week.middleSong) {
+      cMeio.title = `${week.middleSong}`;
+    }
   }
 
   // 8. Nossa Vida Cristã
   const v1 = parts.find(p => p.id === 'vida1');
-  if (v1 && week.christianLivingParts[0]) {
-    v1.title = `Vida Cristã: ${week.christianLivingParts[0].title}`;
-    v1.plannedTime = week.christianLivingParts[0].minutes || 15;
-    v1.speaker = week.christianLivingParts[0].speaker;
+  if (v1) {
+    v1.partNumber = 7;
+    if (week.christianLivingParts[0]) {
+      v1.title = `Vida Cristã: ${week.christianLivingParts[0].title}`;
+      v1.plannedTime = week.christianLivingParts[0].minutes || 15;
+      v1.speaker = week.christianLivingParts[0].speaker;
+    }
+  }
+
+  // Se houver uma 2ª parte de Vida Cristã no PDF (ex: semana de campanha)
+  if (week.christianLivingParts.length > 1) {
+    const v2Index = parts.findIndex(p => p.id === 'vida2');
+    const partV2Data: MeetingPart = {
+      id: 'vida2',
+      partNumber: 8,
+      title: `Vida Cristã: ${week.christianLivingParts[1].title}`,
+      plannedTime: week.christianLivingParts[1].minutes || 5,
+      flexible: false,
+      hasCounsel: false,
+      speaker: week.christianLivingParts[1].speaker
+    };
+
+    if (v2Index >= 0) {
+      parts[v2Index] = partV2Data;
+    } else {
+      const v1Index = parts.findIndex(p => p.id === 'vida1');
+      if (v1Index >= 0) {
+        parts.splice(v1Index + 1, 0, partV2Data);
+      }
+    }
+  } else {
+    // Se não houver 2ª parte, remove qualquer 'vida2' sobressalente
+    parts = parts.filter(p => p.id !== 'vida2');
   }
 
   // 9. Estudo Bíblico de Congregação
   const ebc = parts.find(p => p.id === 'estudo');
   if (ebc) {
+    ebc.partNumber = week.christianLivingParts.length > 1 ? 9 : 8;
     if (week.congregationStudyConductor) {
       ebc.speaker = week.congregationStudyConductor;
     }
@@ -466,13 +515,17 @@ export function applyPdfWeekToMeetingParts(
 
   // 10. Comentários Finais (Presidente)
   const comentFinais = parts.find(p => p.id === 'comentarios_finais');
-  if (comentFinais && week.president) {
-    comentFinais.speaker = week.president;
+  if (comentFinais) {
+    comentFinais.partNumber = undefined;
+    if (week.president) {
+      comentFinais.speaker = week.president;
+    }
   }
 
   // 11. Cântico e Oração Finais
   const cFim = parts.find(p => p.id === 'conclusao_cantico');
   if (cFim) {
+    cFim.partNumber = undefined;
     if (week.closingSong) {
       cFim.title = `${week.closingSong} & Oração Final`;
     }

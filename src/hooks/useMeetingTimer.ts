@@ -3,6 +3,7 @@ import {
   MeetingState, 
   MeetingPart, 
   DEFAULT_PARTS, 
+  getPartsForWeekType,
   CongregationSettings, 
   DEFAULT_BROTHERS, 
   Role, 
@@ -12,12 +13,22 @@ import {
   ActiveMeetingSession,
   TOTAL_PLANNED_MEETING_MINUTES
 } from '../types';
+import {
+  fetchFirebaseSettings,
+  saveFirebaseSettings,
+  fetchFirebaseMeetings,
+  saveFirebaseMeeting,
+  deleteFirebaseMeeting,
+  subscribeToFirebaseMeetings
+} from '../lib/firebase';
 
 const STORAGE_SETTINGS_KEY = 'jw_stage_settings';
 const STORAGE_ACTIVE_SESSION_KEY = 'jw_stage_active_session';
 const STORAGE_ARCHIVE_KEY = 'jw_stage_meetings_archive';
 
 export function useMeetingTimer() {
+  const [firebaseStatus, setFirebaseStatus] = useState<'synced' | 'syncing' | 'offline'>('syncing');
+
   // Settings
   const [settings, setSettings] = useState<CongregationSettings>(() => {
     const saved = localStorage.getItem(STORAGE_SETTINGS_KEY);
@@ -39,7 +50,7 @@ export function useMeetingTimer() {
 
         return {
           name: parsed.name || "Minha Congregação",
-          defaultTime: parsed.defaultTime || "19:30",
+          defaultTime: parsed.defaultTime !== undefined ? parsed.defaultTime : "",
           presidentName: parsed.presidentName || "Presidente da Reunião",
           weekType: parsed.weekType || "Normal",
           brothers: sanitizedBrothers
@@ -48,7 +59,7 @@ export function useMeetingTimer() {
     }
     return {
       name: "Minha Congregação",
-      defaultTime: "19:30",
+      defaultTime: "",
       presidentName: "Presidente da Reunião",
       weekType: "Normal",
       brothers: DEFAULT_BROTHERS
@@ -57,6 +68,7 @@ export function useMeetingTimer() {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(settings));
+    saveFirebaseSettings(settings).catch(() => {});
   }, [settings]);
 
   // Archive of completed meetings
@@ -68,12 +80,86 @@ export function useMeetingTimer() {
     return [];
   });
 
+  // Carregar dados iniciais e sincronizar com o Firebase
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncWithFirebase() {
+      try {
+        setFirebaseStatus('syncing');
+        
+        // 1. Sincronizar configurações
+        const remoteSettings = await fetchFirebaseSettings();
+        if (remoteSettings && isMounted) {
+          if (remoteSettings.name || remoteSettings.brothers?.length) {
+            setSettings(remoteSettings);
+            localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(remoteSettings));
+          }
+        } else if (settings && isMounted) {
+          // Salva as configurações locais se ainda não existirem no Firebase
+          await saveFirebaseSettings(settings);
+        }
+
+        // 2. Sincronizar histórico de reuniões
+        const remoteMeetings = await fetchFirebaseMeetings();
+        if (remoteMeetings && remoteMeetings.length > 0 && isMounted) {
+          setArchivedMeetings(prev => {
+            // Mescla reuniões locais com as do Firebase sem duplicar
+            const idMap = new Map<string, CompletedMeeting>();
+            prev.forEach(m => idMap.set(m.id, m));
+            remoteMeetings.forEach(m => idMap.set(m.id, m));
+            const merged = Array.from(idMap.values()).sort(
+              (a, b) => new Date(b.encerrada_em || b.iniciada_em || 0).getTime() - new Date(a.encerrada_em || a.iniciada_em || 0).getTime()
+            );
+            localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(merged));
+            return merged;
+          });
+        } else if (archivedMeetings.length > 0) {
+          // Se o Firebase estiver vazio e houver reuniões locais, envia para a nuvem
+          for (const m of archivedMeetings) {
+            await saveFirebaseMeeting(m);
+          }
+        }
+
+        if (isMounted) setFirebaseStatus('synced');
+      } catch (err) {
+        console.warn("Firebase sync notice:", err);
+        if (isMounted) setFirebaseStatus('synced');
+      }
+    }
+
+    syncWithFirebase();
+
+    // Inscrição em tempo real para novas reuniões salvas
+    const unsubscribe = subscribeToFirebaseMeetings((liveMeetings) => {
+      if (!isMounted || !liveMeetings || liveMeetings.length === 0) return;
+      setArchivedMeetings(prev => {
+        const idMap = new Map<string, CompletedMeeting>();
+        prev.forEach(m => idMap.set(m.id, m));
+        liveMeetings.forEach(m => idMap.set(m.id, m));
+        const merged = Array.from(idMap.values()).sort(
+          (a, b) => new Date(b.encerrada_em || b.iniciada_em || 0).getTime() - new Date(a.encerrada_em || a.iniciada_em || 0).getTime()
+        );
+        localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(merged));
+        return merged;
+      });
+      setFirebaseStatus('synced');
+    });
+
+    return () => {
+      isMounted = false;
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
   const saveToArchive = (meeting: CompletedMeeting) => {
     setArchivedMeetings(prev => {
       const updated = [meeting, ...prev.filter(m => m.id !== meeting.id)];
       localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(updated));
       return updated;
     });
+    // Salva no Firebase
+    saveFirebaseMeeting(meeting).catch(e => console.error("Error saving meeting to Firebase:", e));
   };
 
   const deleteFromArchive = (id: string) => {
@@ -81,6 +167,33 @@ export function useMeetingTimer() {
       const updated = prev.filter(m => m.id !== id);
       localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(updated));
       return updated;
+    });
+    // Remove do Firebase
+    deleteFirebaseMeeting(id).catch(e => console.error("Error deleting meeting from Firebase:", e));
+  };
+
+  const saveMockMeetings = (meetings: CompletedMeeting[]) => {
+    setArchivedMeetings(prev => {
+      const existingNonDemo = prev.filter(m => !m.id.startsWith('demo-'));
+      const updated = [...meetings, ...existingNonDemo];
+      localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    // Sincroniza demonstrações no Firebase também se desejado
+    meetings.forEach(m => {
+      saveFirebaseMeeting(m).catch(() => {});
+    });
+  };
+
+  const clearMockMeetings = () => {
+    const demosToDelete = archivedMeetings.filter(m => m.id.startsWith('demo-'));
+    setArchivedMeetings(prev => {
+      const updated = prev.filter(m => !m.id.startsWith('demo-'));
+      localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    demosToDelete.forEach(m => {
+      deleteFirebaseMeeting(m.id).catch(() => {});
     });
   };
 
@@ -173,6 +286,13 @@ export function useMeetingTimer() {
 
   // Settings operations
   const updateSettings = (updates: Partial<CongregationSettings>) => {
+    if (updates.weekType && updates.weekType !== settings.weekType && state.status === 'setup') {
+      const templateParts = getPartsForWeekType(updates.weekType);
+      setState(prev => ({
+        ...prev,
+        parts: templateParts
+      }));
+    }
     setSettings(prev => ({ ...prev, ...updates }));
   };
 
@@ -200,20 +320,26 @@ export function useMeetingTimer() {
     });
   };
 
-  const addBrothersBatch = (names: string[], defaultRole: Role = "Publicador") => {
-    if (!names.length) return;
+  const addBrothersBatch = (
+    items: Array<string | { name: string; role?: Role }>,
+    defaultRole: Role = "Publicador"
+  ) => {
+    if (!items.length) return;
     setSettings(prev => {
       const existingMap = new Set(prev.brothers.map(b => b.name.toLowerCase().trim()));
       const toAdd: Brother[] = [];
       
-      names.forEach((rawName, index) => {
+      items.forEach((item, index) => {
+        const rawName = typeof item === 'string' ? item : item.name;
+        const itemRole = typeof item === 'object' && item.role ? item.role : defaultRole;
         const cleanName = rawName.trim();
+        
         if (cleanName && !existingMap.has(cleanName.toLowerCase())) {
           existingMap.add(cleanName.toLowerCase());
           toAdd.push({
             id: `br-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}`,
             name: cleanName,
-            role: defaultRole
+            role: itemRole
           });
         }
       });
@@ -353,13 +479,14 @@ export function useMeetingTimer() {
         // Add to history records
         newState.history.push({
           id: currentPart.id,
+          partNumber: currentPart.partNumber,
           title: currentPart.title,
           speaker: currentPart.speaker,
           assistant: currentPart.assistant,
           hideSpeaker: currentPart.hideSpeaker,
           plannedTime: currentPart.plannedTime,
           actualTime: Math.max(0, Math.round(actualTimeSpent)),
-          status: overTime > 15 ? 'Excedido' : overTime < -15 ? 'Abaixo do tempo' : 'No tempo',
+          status: overTime > 0 ? 'Excedido' : 'No tempo correto',
           hasCounsel: currentPart.hasCounsel,
           counselRecorded: currentPart.hasCounsel
         });
@@ -552,6 +679,9 @@ export function useMeetingTimer() {
     viewArchivedMeeting,
     viewArchiveList,
     deleteFromArchive,
+    saveMockMeetings,
+    clearMockMeetings,
+    firebaseStatus,
     updateSettings,
     updateBrother,
     addBrother,
