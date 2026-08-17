@@ -78,6 +78,20 @@ export async function testFirebaseConnection(): Promise<boolean> {
 const CONGREGATION_DOC_PATH = "congregations/default/settings/current";
 const MEETINGS_COLLECTION_PATH = "congregations/default/meetings";
 
+// Remove todas as propriedades 'undefined' para compatibilidade estrita com Firestore
+function sanitizeFirestoreData<T>(obj: T): any {
+  return JSON.parse(JSON.stringify(obj, (key, value) => {
+    return value === undefined ? null : value;
+  }), (key, value) => {
+    // If it was transformed to null and we prefer removing keys from objects:
+    return value;
+  });
+}
+
+function cleanUndefined<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
+
 // Carregar configurações da congregação do Firebase
 export async function fetchFirebaseSettings(): Promise<CongregationSettings | null> {
   try {
@@ -96,10 +110,11 @@ export async function fetchFirebaseSettings(): Promise<CongregationSettings | nu
 export async function saveFirebaseSettings(settings: CongregationSettings): Promise<void> {
   try {
     const docRef = doc(db, CONGREGATION_DOC_PATH);
-    await setDoc(docRef, {
+    const cleanData = cleanUndefined({
       ...settings,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    });
+    await setDoc(docRef, cleanData, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, CONGREGATION_DOC_PATH);
   }
@@ -146,10 +161,11 @@ export async function fetchFirebaseMeetings(): Promise<CompletedMeeting[]> {
 export async function saveFirebaseMeeting(meeting: CompletedMeeting): Promise<void> {
   try {
     const docRef = doc(db, `${MEETINGS_COLLECTION_PATH}/${meeting.id}`);
-    await setDoc(docRef, {
+    const cleanData = cleanUndefined({
       ...meeting,
       syncedAt: new Date().toISOString()
     });
+    await setDoc(docRef, cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${MEETINGS_COLLECTION_PATH}/${meeting.id}`);
   }

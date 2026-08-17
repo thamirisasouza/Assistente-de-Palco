@@ -23,6 +23,12 @@ import {
   subscribeToFirebaseMeetings,
   subscribeToFirebaseSettings
 } from '../lib/firebase';
+import {
+  MonthPdfParseResult,
+  ParsedWeekSchedule,
+  applyPdfWeekToMeetingParts,
+  findMatchingWeekForDate
+} from '../lib/apostilaParser';
 
 const STORAGE_SETTINGS_KEY = 'jw_stage_settings';
 const STORAGE_ACTIVE_SESSION_KEY = 'jw_stage_active_session';
@@ -328,6 +334,137 @@ export function useMeetingTimer() {
       parts: newParts
     }));
   };
+
+  // Aplica uma programação mensal completa importada (salva todas as semanas)
+  // e seleciona automaticamente a semana correspondente a hoje
+  const applyMonthSchedule = (parseResult: MonthPdfParseResult) => {
+    if (!parseResult || !parseResult.weeks || parseResult.weeks.length === 0) return;
+
+    // Encontra a semana de hoje automaticamente (ex: dia 18 na semana do dia 17)
+    const matchingWeek = findMatchingWeekForDate(parseResult.weeks, new Date()) || parseResult.weeks[0];
+
+    const baseParts = getPartsForWeekType(settings.weekType);
+    const updatedParts = applyPdfWeekToMeetingParts(baseParts, matchingWeek);
+
+    setState(prev => ({
+      ...prev,
+      parts: updatedParts,
+      importedWeekLabel: matchingWeek.weekLabel
+    }));
+
+    // Adiciona irmãos encontrados automaticamente
+    const existingMap = new Set(settings.brothers.map(b => b.name.toLowerCase().trim()));
+    const toAdd: Brother[] = [];
+    (parseResult.allBrothersFound || []).forEach((name, idx) => {
+      const cleanName = name.trim();
+      if (cleanName && !existingMap.has(cleanName.toLowerCase())) {
+        existingMap.add(cleanName.toLowerCase());
+        toAdd.push({
+          id: `br-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
+          name: cleanName,
+          role: 'Publicador'
+        });
+      }
+    });
+
+    const nextBrothers = toAdd.length ? [...settings.brothers, ...toAdd].sort((a, b) => a.name.localeCompare(b.name)) : settings.brothers;
+
+    const updates: Partial<CongregationSettings> = {
+      monthlySchedule: parseResult,
+      selectedWeekId: matchingWeek.id,
+      importedWeekLabel: matchingWeek.weekLabel,
+      brothers: nextBrothers
+    };
+
+    if (matchingWeek.president) {
+      updates.presidentName = matchingWeek.president;
+    }
+    if (parseResult.congregationName && parseResult.congregationName.length > 3) {
+      updates.name = parseResult.congregationName;
+    }
+
+    setSettings(prev => {
+      const next = { ...prev, ...updates };
+      saveFirebaseSettings(next).catch(() => {});
+      return next;
+    });
+  };
+
+  // Alterna manualmente para outra semana da programação mensal salva
+  const selectWeekFromSchedule = (weekId: string) => {
+    if (!settings.monthlySchedule?.weeks) return;
+    const week = settings.monthlySchedule.weeks.find((w: ParsedWeekSchedule) => w.id === weekId);
+    if (!week) return;
+
+    const baseParts = getPartsForWeekType(settings.weekType);
+    const updatedParts = applyPdfWeekToMeetingParts(baseParts, week);
+
+    setState(prev => ({
+      ...prev,
+      parts: updatedParts,
+      importedWeekLabel: week.weekLabel
+    }));
+
+    const updates: Partial<CongregationSettings> = {
+      selectedWeekId: week.id,
+      importedWeekLabel: week.weekLabel
+    };
+    if (week.president) {
+      updates.presidentName = week.president;
+    }
+
+    setSettings(prev => {
+      const next = { ...prev, ...updates };
+      saveFirebaseSettings(next).catch(() => {});
+      return next;
+    });
+  };
+
+  // Exclui a programação mensal salva
+  const clearMonthlySchedule = () => {
+    const baseParts = getPartsForWeekType(settings.weekType);
+    setState(prev => ({
+      ...prev,
+      parts: baseParts,
+      importedWeekLabel: undefined
+    }));
+
+    setSettings(prev => {
+      const next = {
+        ...prev,
+        monthlySchedule: null,
+        selectedWeekId: undefined,
+        importedWeekLabel: undefined
+      };
+      saveFirebaseSettings(next).catch(() => {});
+      return next;
+    });
+  };
+
+  // Ao iniciar ou trocar settings, se houver programação mensal e estiver em setup,
+  // garante que a semana correspondente à data de hoje esteja carregada
+  useEffect(() => {
+    if (state.status !== 'setup') return;
+    if (!settings.monthlySchedule?.weeks || settings.monthlySchedule.weeks.length === 0) return;
+
+    const currentMatchingWeek = findMatchingWeekForDate(settings.monthlySchedule.weeks, new Date());
+    if (!currentMatchingWeek) return;
+
+    // Se a semana salva for a de hoje ou se nada estiver selecionado ainda
+    const targetWeekId = settings.selectedWeekId || currentMatchingWeek.id;
+    const targetWeek = settings.monthlySchedule.weeks.find((w: ParsedWeekSchedule) => w.id === targetWeekId) || currentMatchingWeek;
+
+    // Apenas aplica se ainda não tiver sido carregada
+    if (state.importedWeekLabel !== targetWeek.weekLabel) {
+      const baseParts = getPartsForWeekType(settings.weekType);
+      const updatedParts = applyPdfWeekToMeetingParts(baseParts, targetWeek);
+      setState(prev => ({
+        ...prev,
+        parts: updatedParts,
+        importedWeekLabel: targetWeek.weekLabel
+      }));
+    }
+  }, [settings.monthlySchedule, settings.selectedWeekId, settings.weekType, state.status, state.importedWeekLabel]);
 
   const addPart = (index: number) => {
     setState(prev => {
@@ -649,6 +786,9 @@ export function useMeetingTimer() {
     updateBrother,
     addBrother,
     addBrothersBatch,
-    removeBrother
+    removeBrother,
+    applyMonthSchedule,
+    selectWeekFromSchedule,
+    clearMonthlySchedule
   };
 }

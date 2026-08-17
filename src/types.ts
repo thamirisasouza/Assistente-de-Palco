@@ -17,6 +17,8 @@ export interface CongregationSettings {
   weekType: WeekType;
   brothers: Brother[];
   importedWeekLabel?: string;
+  monthlySchedule?: any; // MonthPdfParseResult
+  selectedWeekId?: string;
 }
 
 export interface MeetingPart {

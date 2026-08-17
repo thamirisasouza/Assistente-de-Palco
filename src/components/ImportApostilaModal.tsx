@@ -3,7 +3,8 @@ import {
   parseMonthlyPdfText, 
   ParsedWeekSchedule, 
   MonthPdfParseResult, 
-  applyPdfWeekToMeetingParts
+  applyPdfWeekToMeetingParts,
+  findMatchingWeekForDate
 } from '../lib/apostilaParser';
 import { readPdfFile } from '../lib/pdfReader';
 import { MeetingPart, Brother } from '../types';
@@ -15,20 +16,20 @@ import {
   Sparkles, 
   X, 
   Edit3, 
-  ArrowRight,
-  BookOpen,
-  Music,
-  CheckCircle2,
-  RefreshCw,
-  UploadCloud,
-  Calendar,
-  User,
-  Users,
-  Building2,
-  FileCheck2,
-  FileCode,
-  Layers,
-  HelpCircle
+  ArrowRight, 
+  BookOpen, 
+  Music, 
+  CheckCircle2, 
+  RefreshCw, 
+  UploadCloud, 
+  Calendar, 
+  User, 
+  Users, 
+  Building2, 
+  FileCheck2, 
+  FileCode, 
+  Layers, 
+  HelpCircle 
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -43,6 +44,7 @@ interface ImportApostilaModalProps {
     allBrothersFound: string[], 
     congregationName?: string
   ) => void;
+  onApplyMonthSchedule?: (result: MonthPdfParseResult) => void;
 }
 
 export function ImportApostilaModal({
@@ -50,7 +52,8 @@ export function ImportApostilaModal({
   currentParts,
   existingBrothers,
   onClose,
-  onApplyWeek
+  onApplyWeek,
+  onApplyMonthSchedule
 }: ImportApostilaModalProps) {
   const [activeInputMode, setActiveInputMode] = useState<'upload' | 'paste'>('upload');
   const [inputText, setInputText] = useState("");
@@ -75,7 +78,10 @@ export function ImportApostilaModal({
       setInputText(extracted.fullText);
       const parsed = parseMonthlyPdfText(extracted.fullText);
       setParseResult(parsed);
-      setSelectedWeekIndex(0);
+
+      const matchingWeek = findMatchingWeekForDate(parsed.weeks, new Date());
+      const matchingIndex = matchingWeek ? parsed.weeks.findIndex(w => w.id === matchingWeek.id) : 0;
+      setSelectedWeekIndex(matchingIndex >= 0 ? matchingIndex : 0);
       setStep('review');
     } catch (err) {
       console.error("Erro ao ler PDF:", err);
@@ -91,7 +97,10 @@ export function ImportApostilaModal({
     if (!inputText.trim()) return;
     const parsed = parseMonthlyPdfText(inputText);
     setParseResult(parsed);
-    setSelectedWeekIndex(0);
+
+    const matchingWeek = findMatchingWeekForDate(parsed.weeks, new Date());
+    const matchingIndex = matchingWeek ? parsed.weeks.findIndex(w => w.id === matchingWeek.id) : 0;
+    setSelectedWeekIndex(matchingIndex >= 0 ? matchingIndex : 0);
     setStep('review');
   };
 
@@ -107,13 +116,18 @@ export function ImportApostilaModal({
     } catch (e) {
       console.warn("Não foi possível salvar a programação mensal no storage:", e);
     }
-    const updatedParts = applyPdfWeekToMeetingParts(currentParts, selectedWeek);
-    onApplyWeek(
-      updatedParts, 
-      selectedWeek, 
-      parseResult.allBrothersFound, 
-      parseResult.congregationName
-    );
+
+    if (onApplyMonthSchedule) {
+      onApplyMonthSchedule(parseResult);
+    } else {
+      const updatedParts = applyPdfWeekToMeetingParts(currentParts, selectedWeek);
+      onApplyWeek(
+        updatedParts, 
+        selectedWeek, 
+        parseResult.allBrothersFound, 
+        parseResult.congregationName
+      );
+    }
     onClose();
   };
 

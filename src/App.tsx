@@ -10,7 +10,10 @@ import { Setup } from './components/Setup';
 import { MeetingStage } from './components/MeetingStage';
 import { History } from './components/History';
 import { Login } from './components/Login';
-import { Sun, Moon, RotateCcw, Play, AlertCircle, LogOut } from 'lucide-react';
+import { TopHeader } from './components/TopHeader';
+import { BottomNavigation, NavTab } from './components/BottomNavigation';
+import { DrawerMenu } from './components/DrawerMenu';
+import { RotateCcw, Play, AlertCircle } from 'lucide-react';
 import { cn } from './lib/utils';
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
@@ -21,6 +24,11 @@ export default function App() {
   const { state, pendingSavedSession } = timerContext;
   const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+
+  // Controle de Navegação Inferior & Gaveta Lateral
+  const [currentTab, setCurrentTab] = useState<NavTab>('programacao');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -46,33 +54,15 @@ export default function App() {
     signOut(auth).catch(console.error);
   };
 
-  const isMeetingFinished = state.status === 'summary' || state.status === 'history_list';
+  const isMeetingFinished = state.status === 'summary';
 
   return (
     <div className={cn(
-      "min-h-screen font-sans antialiased transition-colors duration-500",
+      "min-h-screen font-sans antialiased transition-colors duration-500 flex flex-col",
       isMeetingFinished 
         ? "bg-emerald-600 dark:bg-emerald-800 text-white" 
         : "bg-slate-50 dark:bg-[#0F172A] text-slate-900 dark:text-slate-100"
     )}>
-      
-      {/* Botões Flutuantes (Tema e Sair) */}
-      <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-50 flex items-center gap-2">
-        <button
-          onClick={toggleTheme}
-          className="h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-white/90 dark:bg-[#1E293B]/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-[#295E9F] dark:hover:text-[#4A6CA7] shadow-md flex items-center justify-center transition-all cursor-pointer"
-          title="Alternar Tema Claro / Escuro"
-        >
-          {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-slate-700" />}
-        </button>
-        <button
-          onClick={handleLogout}
-          className="h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 backdrop-blur-md shadow-md flex items-center justify-center transition-all cursor-pointer"
-          title="Sair do Sistema"
-        >
-          <LogOut className="w-5 h-5" />
-        </button>
-      </div>
 
       {/* Modal de Restauração de Sessão Ativa em Andamento (PRD 10.5 & 11) */}
       {pendingSavedSession && state.status === 'setup' && (
@@ -124,28 +114,78 @@ export default function App() {
         </div>
       )}
 
-      {/* Tela 1: Setup & Programação */}
+      {/* TELA PRINCIPAL (ESTADO 'setup' ou navegação) */}
       {state.status === 'setup' && (
-        <Setup 
-          state={state}
-          settings={timerContext.settings}
-          archivedCount={timerContext.archivedMeetings.length}
-          archivedMeetings={timerContext.archivedMeetings}
-          firebaseStatus={timerContext.firebaseStatus}
-          onUpdatePart={timerContext.updatePart}
-          onApplyAllParts={timerContext.setAllParts}
-          onStart={timerContext.startMeeting}
-          onUpdateSettings={timerContext.updateSettings}
-          onUpdateBrother={timerContext.updateBrother}
-          onAddBrother={timerContext.addBrother}
-          onAddBrothersBatch={timerContext.addBrothersBatch}
-          onRemoveBrother={timerContext.removeBrother}
-          onViewArchive={timerContext.viewArchiveList}
-          onViewArchivedMeeting={timerContext.viewArchivedMeeting}
-        />
+        <div className="flex flex-col min-h-screen">
+          {/* Top Header com Saudação & Botão Hambúrguer (Screenshot 1) */}
+          <TopHeader 
+            userName={user.displayName || undefined}
+            userEmail={user.email || undefined}
+            congregationName={timerContext.settings.name}
+            onOpenMenu={() => setIsDrawerOpen(true)}
+          />
+
+          {/* Conteúdo Central Limpo */}
+          <main className="flex-1">
+            <Setup 
+              state={state}
+              settings={timerContext.settings}
+              archivedCount={timerContext.archivedMeetings.length}
+              archivedMeetings={timerContext.archivedMeetings}
+              firebaseStatus={timerContext.firebaseStatus}
+              activeTab={currentTab}
+              onTabChange={setCurrentTab}
+              onUpdatePart={timerContext.updatePart}
+              onApplyAllParts={timerContext.setAllParts}
+              onStart={timerContext.startMeeting}
+              onUpdateSettings={timerContext.updateSettings}
+              onUpdateBrother={timerContext.updateBrother}
+              onAddBrother={timerContext.addBrother}
+              onAddBrothersBatch={timerContext.addBrothersBatch}
+              onRemoveBrother={timerContext.removeBrother}
+              onViewArchive={() => setCurrentTab('historico')}
+              onViewArchivedMeeting={timerContext.viewArchivedMeeting}
+              onDeleteMeeting={timerContext.deleteFromArchive}
+              onApplyMonthSchedule={timerContext.applyMonthSchedule}
+              onSelectWeek={timerContext.selectWeekFromSchedule}
+              onClearMonthlySchedule={timerContext.clearMonthlySchedule}
+              isImportModalOpen={isImportModalOpen}
+              onSetIsImportModalOpen={setIsImportModalOpen}
+            />
+          </main>
+
+          {/* Barra de Navegação Inferior (Screenshot 1) */}
+          <BottomNavigation 
+            activeTab={currentTab}
+            onTabChange={setCurrentTab}
+            onStartMeeting={timerContext.startMeeting}
+            onOpenDrawer={() => setIsDrawerOpen(true)}
+            archivedCount={timerContext.archivedMeetings.length}
+          />
+
+          {/* Gaveta / Menu Lateral (Screenshot 2) */}
+          <DrawerMenu 
+            isOpen={isDrawerOpen}
+            onClose={() => setIsDrawerOpen(false)}
+            userEmail={user.email || ''}
+            userName={user.displayName || undefined}
+            congregationName={timerContext.settings.name}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onNavigate={(tab) => {
+              setCurrentTab(tab);
+              setIsDrawerOpen(false);
+            }}
+            onOpenImportPdf={() => {
+              setIsImportModalOpen(true);
+            }}
+            onLogout={handleLogout}
+            archivedCount={timerContext.archivedMeetings.length}
+          />
+        </div>
       )}
       
-      {/* Tela 2: Palco ao Vivo */}
+      {/* TELA DE PALCO AO VIVO */}
       {state.status === 'running' && (
         <MeetingStage 
           state={state}
@@ -162,7 +202,7 @@ export default function App() {
         />
       )}
 
-      {/* Tela 3: Resumo Imutável & Histórico Arquivado */}
+      {/* TELA DE RESUMO FINAL IMUTÁVEL */}
       {(state.status === 'summary' || state.status === 'history_list') && (
         <History 
           meeting={state.currentMeeting}

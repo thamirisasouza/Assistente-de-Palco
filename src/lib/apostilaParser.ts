@@ -538,6 +538,93 @@ export function applyPdfWeekToMeetingParts(
 }
 
 /**
+ * Converte strings de data da apostila em objeto Date para comparação
+ * Ex: "17 de agosto de 2026", "17 de agosto", "17/08/2026", etc.
+ */
+export function parseWeekStartDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const str = dateStr.toLowerCase().trim();
+
+  const ptMonths: Record<string, number> = {
+    'janeiro': 0, 'jan': 0,
+    'fevereiro': 1, 'fev': 1,
+    'março': 2, 'marco': 2, 'mar': 2,
+    'abril': 3, 'abr': 3,
+    'maio': 4, 'mai': 4,
+    'junho': 5, 'jun': 5,
+    'julho': 6, 'jul': 6,
+    'agosto': 7, 'ago': 7,
+    'setembro': 8, 'set': 8,
+    'outubro': 9, 'out': 9,
+    'novembro': 10, 'nov': 10,
+    'dezembro': 11, 'dez': 11
+  };
+
+  // Formato com barras ou hífens: 17/08/2026 ou 17/08
+  const slashMatch = str.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{4}|\d{2}))?/);
+  if (slashMatch) {
+    const day = parseInt(slashMatch[1], 10);
+    const month = parseInt(slashMatch[2], 10) - 1;
+    let year = slashMatch[3] ? parseInt(slashMatch[3], 10) : new Date().getFullYear();
+    if (year < 100) year += 2000;
+    return new Date(year, month, day, 0, 0, 0);
+  }
+
+  // Formato por extenso: "17 de agosto de 2026" ou "17 de agosto"
+  const textMatch = str.match(/(\d{1,2})\s+de\s+([a-zçãéíóúA-ZÇÃÉÍÓÚ]+)(?:\s+de\s+(\d{4}))?/i);
+  if (textMatch) {
+    const day = parseInt(textMatch[1], 10);
+    const monthName = textMatch[2].toLowerCase().trim();
+    const month = ptMonths[monthName] ?? -1;
+    const year = textMatch[3] ? parseInt(textMatch[3], 10) : new Date().getFullYear();
+    if (month !== -1) {
+      return new Date(year, month, day, 0, 0, 0);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Encontra a semana correspondente à data informada (ou à data atual).
+ * Se hoje é dia 18 e a semana começou dia 17 (segunda-feira), a semana do dia 17 é selecionada.
+ */
+export function findMatchingWeekForDate(weeks: ParsedWeekSchedule[], targetDate: Date = new Date()): ParsedWeekSchedule | null {
+  if (!weeks || weeks.length === 0) return null;
+
+  const targetTime = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
+
+  // 1. Tenta encontrar a semana onde targetDate está entre o início da semana e o final (7 dias corridos)
+  for (const week of weeks) {
+    const startDate = parseWeekStartDate(week.date);
+    if (startDate) {
+      const startTime = startDate.getTime();
+      const endTime = startTime + (7 * 24 * 60 * 60 * 1000) - 1; // 7 dias
+      if (targetTime >= startTime && targetTime <= endTime) {
+        return week;
+      }
+    }
+  }
+
+  // 2. Se a data estiver fora do intervalo estrito, seleciona a semana mais próxima
+  let closestWeek = weeks[0];
+  let minDiff = Infinity;
+
+  for (const week of weeks) {
+    const startDate = parseWeekStartDate(week.date);
+    if (startDate) {
+      const diff = Math.abs(startDate.getTime() - targetTime);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestWeek = week;
+      }
+    }
+  }
+
+  return closestWeek;
+}
+
+/**
  * Exemplo real padrão retirado exatamente do PDF mensal
  */
 export const SAMPLE_MONTHLY_PDF_TEXT = `Jardim Rosana - Ferraz de Vasconcelos SP Reunião do meio de semana

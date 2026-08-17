@@ -44,9 +44,9 @@ export function History({
 }: HistoryProps) {
   const [copied, setCopied] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [activeTab, setActiveTab] = useState<'resumo' | 'arquivo' | 'graficos'>('resumo');
+  const [activeTab, setActiveTab] = useState<'resumo' | 'historico' | 'graficos'>('resumo');
 
-  // Selected meeting to display, fallback to first in archive
+  // Selected meeting to display, fallback to first in history
   const activeMeeting = meeting || archivedMeetings[0];
 
   if (!activeMeeting) {
@@ -56,16 +56,17 @@ export function History({
           <FileText className="w-8 h-8" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Nenhuma Reunião Arquivada</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Nenhuma Reunião no Histórico</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
-            Após concluir e encerrar a primeira reunião, o relatório imutável aparecerá aqui.
+            Após concluir e encerrar a reunião, o relatório detalhado aparecerá aqui.
           </p>
         </div>
         <button
           onClick={onNewMeeting}
-          className="min-h-[56px] px-8 bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold rounded-2xl shadow-lg transition-all animate-pulse-attention"
+          className="min-h-[56px] px-8 bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer"
         >
-          Iniciar Nova Reunião
+          <ArrowLeft className="w-5 h-5" />
+          Voltar ao Início (Dashboard)
         </button>
       </div>
     );
@@ -148,8 +149,17 @@ export function History({
         
         {/* Header */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-500/30 dark:border-emerald-700/50 pb-6">
-          <div>
+          <div className="space-y-1">
             <div className="flex items-center gap-2 mb-1">
+              <button
+                type="button"
+                onClick={onNewMeeting}
+                className="px-3 py-1 bg-white/15 hover:bg-white/25 text-white font-bold text-xs rounded-full border border-white/20 flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Voltar para a tela inicial (Dashboard)"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Voltar ao Início
+              </button>
               <span className="px-3 py-1 bg-emerald-900/30 text-emerald-100 font-bold text-xs rounded-full border border-emerald-400/30 uppercase tracking-wider flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Reunião Encerrada
               </span>
@@ -158,7 +168,7 @@ export function History({
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              Resumo & Relatório da Reunião
+              Histórico & Relatório da Reunião
             </h1>
             <p className="text-sm text-emerald-100 flex items-center gap-2 flex-wrap">
               <span>{activeMeeting.data_formatada} • {activeMeeting.congregacao}</span>
@@ -185,15 +195,15 @@ export function History({
               <FileText className="w-4 h-4" /> Resumo
             </button>
             <button
-              onClick={() => setActiveTab('arquivo')}
+              onClick={() => setActiveTab('historico')}
               className={cn(
                 "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                activeTab === 'arquivo' 
+                activeTab === 'historico' 
                   ? "bg-emerald-600 text-white shadow-sm" 
                   : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               )}
             >
-              <Calendar className="w-4 h-4" /> Arquivo ({archivedMeetings.length})
+              <Calendar className="w-4 h-4" /> Histórico ({archivedMeetings.length})
             </button>
             <button
               onClick={() => setActiveTab('graficos')}
@@ -328,13 +338,13 @@ export function History({
           </div>
         )}
 
-        {/* TAB 2: ARQUIVO HISTÓRICO DE REUNIÕES */}
-        {activeTab === 'arquivo' && (
+        {/* TAB 2: HISTÓRICO DE REUNIÕES */}
+        {activeTab === 'historico' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap gap-2 justify-between items-center">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">Histórico de Reuniões Gravadas</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Reuniões arquivadas salvas no dispositivo. Baixe o PDF oficial com minutos reais a qualquer momento.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Reuniões concluídas e registradas. Baixe o PDF oficial com minutos reais a qualquer momento.</p>
               </div>
               <button
                 type="button"
@@ -384,8 +394,6 @@ export function History({
                     </div>
 
                     <div className="flex items-center justify-between sm:justify-end gap-4">
-                      
-
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -408,7 +416,7 @@ export function History({
                         <button
                           onClick={() => onDeleteMeeting(m.id)}
                           className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl flex items-center justify-center transition-colors"
-                          title="Excluir do Arquivo"
+                          title="Excluir do Histórico"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -434,7 +442,7 @@ export function History({
         )}
       </div>
 
-      {/* Fixed Action Footer (Princípio 2: Alvo ≥ 56px) */}
+      {/* Fixed Action Footer */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-[#1E293B]/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 z-40">
         <div className="max-w-4xl mx-auto grid grid-cols-3 gap-2">
           <button
@@ -459,10 +467,10 @@ export function History({
           <button
             type="button"
             onClick={onNewMeeting}
-            className="w-full min-h-[56px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold text-xs sm:text-base rounded-2xl transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 animate-pulse-attention"
+            className="w-full min-h-[56px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold text-xs sm:text-base rounded-2xl transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 cursor-pointer"
           >
-            <RefreshCw className="w-5 h-5" />
-            <span className="text-center">Nova Reunião</span>
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-center">Voltar ao Início</span>
           </button>
         </div>
       </div>
