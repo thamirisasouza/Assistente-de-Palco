@@ -136,149 +136,126 @@ export function Setup({
         {activeTab === 'programacao' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             
-            {/* Seletor de Semanas Mensais (se houver escala mensal importada e salva) */}
-            {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 && (
-              <div className="bg-white dark:bg-[#1E293B] rounded-3xl p-4 sm:p-5 border border-sky-200 dark:border-slate-800 shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] flex items-center justify-center">
-                      <Layers className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">
-                          Escala do Mês Salva
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-300 font-semibold font-mono">
-                          {settings.monthlySchedule.weeks.length} semanas
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Permanece salva automaticamente até ser substituída ou excluída
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setIsImportModalOpen(true)}
-                      className="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
-                      title="Importar novo PDF"
-                    >
-                      Novo PDF
-                    </button>
-                    {onClearMonthlySchedule && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm("Deseja remover a escala mensal salva deste arquivo?")) {
-                            onClearMonthlySchedule();
-                          }
-                        }}
-                        className="p-1.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-                        title="Excluir arquivo de escala"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Grade de Semanas do Mês */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                  {settings.monthlySchedule.weeks.map((week) => {
-                    const isSelected = (settings.selectedWeekId === week.id) || (!settings.selectedWeekId && week.id === (currentMatchingWeek?.id || settings.monthlySchedule?.weeks[0]?.id));
-                    const isCurrentDateWeek = currentMatchingWeek?.id === week.id;
-
-                    return (
-                      <button
-                        key={week.id}
-                        type="button"
-                        onClick={() => onSelectWeek && onSelectWeek(week.id)}
-                        className={cn(
-                          "p-2.5 rounded-2xl border text-left transition-all relative flex flex-col justify-between cursor-pointer",
-                          isSelected 
-                            ? "bg-[#295E9F] text-white border-[#295E9F] shadow-sm shadow-[#295E9F]/20 ring-2 ring-[#295E9F]/30" 
-                            : "bg-slate-50 dark:bg-[#0F172A] border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-sky-300"
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className={cn(
-                            "text-[10px] font-bold uppercase tracking-wider truncate",
-                            isSelected ? "text-sky-100" : "text-slate-400"
-                          )}>
-                            {week.date}
-                          </span>
-                          {isCurrentDateWeek && (
-                            <span className={cn(
-                              "text-[9px] px-1.5 py-0.5 rounded-md font-bold shrink-0",
-                              isSelected ? "bg-emerald-400 text-emerald-950" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                            )}>
-                              Hoje
-                            </span>
-                          )}
-                        </div>
-                        <p className={cn(
-                          "text-[11px] font-semibold line-clamp-1",
-                          isSelected ? "text-white" : "text-slate-700 dark:text-slate-300"
-                        )}>
-                          {week.bibleReading || week.weekLabel}
-                        </p>
-                        {week.president && (
-                          <span className={cn(
-                            "text-[10px] truncate mt-1 block",
-                            isSelected ? "text-sky-100/80" : "text-slate-400"
-                          )}>
-                            👤 {week.president}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Card Principal: Resumo da Reunião Ativa */}
-            <div className="bg-white dark:bg-[#1E293B] rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+            {/* Card Principal: Resumo da Reunião e Seletor de Semanas (Unificado) */}
+            <div className="bg-white dark:bg-[#1E293B] rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3.5">
+              {/* Cabeçalho do Card */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7]">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7]">
                       1h 45m • Tempo Padrão
                     </span>
                     {settings.weekType === 'Visita do SC (Semana)' && (
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
                         Visita do SC
                       </span>
                     )}
+                    {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 font-mono">
+                        Escala: {settings.monthlySchedule.weeks.length} semanas
+                      </span>
+                    )}
                   </div>
-                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-tight">
                     {weekDisplay}
                   </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Início previsto: <strong className="text-slate-800 dark:text-slate-200">{settings.defaultTime || '19:30'}</strong> • {state.parts.length} partes programadas
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Início: <strong className="text-slate-800 dark:text-slate-200">{settings.defaultTime || '19:30'}</strong> • {state.parts.length} partes programadas
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setIsImportModalOpen(true)}
-                  className="px-4 py-2.5 rounded-2xl bg-sky-500/10 hover:bg-sky-500/20 text-[#295E9F] dark:text-[#4A6CA7] border border-sky-500/20 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs shrink-0 self-start sm:self-auto"
-                >
-                  <Sparkles className="w-4 h-4 text-sky-500" />
-                  Importar PDF
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsImportModalOpen(true)}
+                    className="px-3.5 py-2 rounded-2xl bg-sky-500/10 hover:bg-sky-500/20 text-[#295E9F] dark:text-[#4A6CA7] border border-sky-500/20 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Importar PDF da apostila mensal"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-sky-500" />
+                    {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 ? 'Trocar PDF' : 'Importar PDF'}
+                  </button>
+
+                  {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 && onClearMonthlySchedule && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm("Deseja remover a escala mensal salva deste arquivo?")) {
+                          onClearMonthlySchedule();
+                        }
+                      }}
+                      className="p-2 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer border border-transparent hover:border-red-200"
+                      title="Excluir arquivo de escala mensal"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Troca Rápida de Tipo de Semana */}
+              {/* Seletor de Semanas do Mês (quando houver escala importada) */}
+              {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 && (
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {settings.monthlySchedule.weeks.map((week) => {
+                      const isSelected = (settings.selectedWeekId === week.id) || (!settings.selectedWeekId && week.id === (currentMatchingWeek?.id || settings.monthlySchedule?.weeks[0]?.id));
+                      const isCurrentDateWeek = currentMatchingWeek?.id === week.id;
+
+                      return (
+                        <button
+                          key={week.id}
+                          type="button"
+                          onClick={() => onSelectWeek && onSelectWeek(week.id)}
+                          className={cn(
+                            "p-2 rounded-2xl border text-left transition-all relative flex flex-col justify-between cursor-pointer",
+                            isSelected 
+                              ? "bg-[#295E9F] text-white border-[#295E9F] shadow-sm shadow-[#295E9F]/20 ring-2 ring-[#295E9F]/30" 
+                              : "bg-slate-50 dark:bg-[#0F172A] border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-sky-300"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className={cn(
+                              "text-[10px] font-bold uppercase tracking-wider truncate",
+                              isSelected ? "text-sky-100" : "text-slate-400"
+                            )}>
+                              {week.date}
+                            </span>
+                            {isCurrentDateWeek && (
+                              <span className={cn(
+                                "text-[9px] px-1.5 py-0.2 rounded-md font-bold shrink-0",
+                                isSelected ? "bg-emerald-400 text-emerald-950" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              )}>
+                                Hoje
+                              </span>
+                            )}
+                          </div>
+                          <p className={cn(
+                            "text-[11px] font-semibold line-clamp-1",
+                            isSelected ? "text-white" : "text-slate-700 dark:text-slate-300"
+                          )}>
+                            {week.bibleReading || week.weekLabel}
+                          </p>
+                          {week.president && (
+                            <span className={cn(
+                              "text-[10px] truncate mt-0.5 block",
+                              isSelected ? "text-sky-100/80" : "text-slate-400"
+                            )}>
+                              👤 {week.president}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Barra de Modalidade da Reunião */}
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 text-xs">
-                <span className="text-slate-500 dark:text-slate-400">Modalidade da reunião:</span>
+                <span className="text-slate-500 dark:text-slate-400 text-[11px]">Modalidade:</span>
                 <select
                   value={settings.weekType}
                   onChange={(e) => onUpdateSettings({ weekType: e.target.value as WeekType })}
-                  className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold rounded-xl px-2.5 py-1.5 outline-none cursor-pointer"
+                  className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold rounded-xl px-2 py-1 outline-none cursor-pointer"
                 >
                   <option value="Normal">Meio de Semana Normal</option>
                   <option value="Visita do SC (Semana)">Visita do SC (Discurso 30 min)</option>
