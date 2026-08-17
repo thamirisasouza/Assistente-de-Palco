@@ -4,7 +4,7 @@ import {
   Play, Plus, Trash2, Clock, Users, Calendar, Building2, Edit2, X, Check, 
   FileText, CheckCircle2, AlertCircle, Sparkles, BookOpen, CalendarX, 
   UserPlus, ClipboardPaste, ChevronDown, ChevronUp, ChevronRight, BarChart3,
-  Cloud, RefreshCw, Search
+  Cloud, RefreshCw, Search, Save
 } from 'lucide-react';
 import { cn, addMinutesToTime } from '../lib/utils';
 import { ImportApostilaModal } from './ImportApostilaModal';
@@ -43,6 +43,14 @@ export function Setup({
   const [newBrotherName, setNewBrotherName] = useState('');
   const [newBrotherRole, setNewBrotherRole] = useState<Role>('Publicador');
   const [brotherSearch, setBrotherSearch] = useState('');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  const handleSaveSettings = () => {
+    setIsSavingSettings(true);
+    setTimeout(() => {
+      setIsSavingSettings(false);
+    }, 1500);
+  };
 
   const [importedWeekLabel, setImportedWeekLabel] = useState<string | null>(null);
 
@@ -142,18 +150,36 @@ export function Setup({
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-400">
             {/* Configurações da Reunião / Congregação */}
             <section className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5">
-              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] flex items-center justify-center font-bold shrink-0">
-                  <Building2 className="w-5 h-5" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] flex items-center justify-center font-bold shrink-0">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                      Configurações da Congregação
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Defina o nome oficial da congregação e o horário habitual de início das reuniões.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                    Configurações da Congregação
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Defina o nome oficial da congregação e o horário habitual de início das reuniões.
-                  </p>
-                </div>
+                <button
+                  onClick={handleSaveSettings}
+                  className="min-h-[40px] px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                >
+                  {isSavingSettings ? (
+                    <>
+                      <Check className="w-4 h-4 animate-in zoom-in" />
+                      Sincronizado!
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Salvar
+                    </>
+                  )}
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -322,12 +348,12 @@ export function Setup({
         {activeTab === 'programacao' && (
           <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-400">
             {/* Seção Ocultável: Importar PDF da Programação do Mês */}
-            <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm transition-all">
+            <div className="bg-white/40 dark:bg-[#1E293B]/40 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 rounded-3xl overflow-hidden shadow-lg transition-all">
               {/* Cabeçalho Clicável para Mostrar / Ocultar */}
               <button
                 type="button"
                 onClick={() => setIsPdfSectionOpen(!isPdfSectionOpen)}
-                className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-white/50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
                 aria-expanded={isPdfSectionOpen}
               >
                 <div className="flex items-center gap-3">
@@ -344,12 +370,12 @@ export function Setup({
                           ✅ Aplicada: {importedWeekLabel}
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                           Opcional
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                       {isPdfSectionOpen 
                         ? "Clique para ocultar o painel de importação" 
                         : "Clique para abrir e enviar o arquivo PDF da congregação"}
@@ -361,7 +387,7 @@ export function Setup({
                   <span className="text-xs font-bold text-[#295E9F] dark:text-[#4A6CA7] hidden sm:inline">
                     {isPdfSectionOpen ? "Ocultar" : "Mostrar"}
                   </span>
-                  <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 flex items-center justify-center border border-slate-200 dark:border-slate-700">
                     {isPdfSectionOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </div>
                 </div>
@@ -369,8 +395,8 @@ export function Setup({
 
               {/* Conteúdo Expandido */}
               {isPdfSectionOpen && (
-                <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 dark:border-slate-800/80 space-y-4 animate-in fade-in duration-200">
-                  <div className="p-4 bg-slate-50 dark:bg-[#0F172A] rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="p-4 sm:p-5 pt-0 border-t border-slate-200/50 dark:border-slate-700/50 space-y-4 animate-in fade-in duration-200">
+                  <div className="p-4 bg-white/60 dark:bg-[#0F172A]/60 backdrop-blur-md rounded-2xl border border-white/50 dark:border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="space-y-1">
                       <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium">
                         Envie o arquivo PDF da programação mensal da congregação. O sistema preenche automaticamente todos os temas, oradores, leitores e cânticos.

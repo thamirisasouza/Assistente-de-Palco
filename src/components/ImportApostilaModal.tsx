@@ -3,7 +3,6 @@ import {
   parseMonthlyPdfText, 
   ParsedWeekSchedule, 
   MonthPdfParseResult, 
-  SAMPLE_MONTHLY_PDF_TEXT,
   applyPdfWeekToMeetingParts
 } from '../lib/apostilaParser';
 import { readPdfFile } from '../lib/pdfReader';
@@ -91,15 +90,6 @@ export function ImportApostilaModal({
   const handleProcessText = () => {
     if (!inputText.trim()) return;
     const parsed = parseMonthlyPdfText(inputText);
-    setParseResult(parsed);
-    setSelectedWeekIndex(0);
-    setStep('review');
-  };
-
-  const handleLoadSample = () => {
-    setInputText(SAMPLE_MONTHLY_PDF_TEXT);
-    setPdfFileName("programacao_mensal_jardim_rosana.pdf");
-    const parsed = parseMonthlyPdfText(SAMPLE_MONTHLY_PDF_TEXT);
     setParseResult(parsed);
     setSelectedWeekIndex(0);
     setStep('review');
@@ -240,21 +230,6 @@ export function ImportApostilaModal({
                       {isProcessingPdf ? "Processando..." : "Selecionar Arquivo PDF"}
                     </button>
                   </div>
-
-                  {/* Botão de Exemplo */}
-                  <div className="flex items-center justify-between pt-2">
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                      Quer testar com a escala de Agosto de 2026?
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleLoadSample}
-                      className="text-xs text-[#295E9F] dark:text-[#4A6CA7] hover:underline font-bold flex items-center gap-1.5"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Carregar Escala Mensal Modelo
-                    </button>
-                  </div>
                 </div>
               ) : (
                 /* COLAGEM DE TEXTO */
@@ -263,14 +238,6 @@ export function ImportApostilaModal({
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                       Texto do PDF da Reunião:
                     </label>
-                    <button
-                      type="button"
-                      onClick={handleLoadSample}
-                      className="text-xs text-[#295E9F] dark:text-[#4A6CA7] hover:underline font-bold flex items-center gap-1"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Preencher Exemplo Modelo
-                    </button>
                   </div>
 
                   <textarea

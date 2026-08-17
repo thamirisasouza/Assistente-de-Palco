@@ -32,7 +32,7 @@ export interface MeetingPart {
   assistant?: string;
 }
 
-export type PartResultStatus = 'No tempo correto' | 'Excedido' | 'No tempo' | 'Abaixo do tempo';
+export type PartResultStatus = 'No tempo correto' | 'Excedido' | 'No tempo' | 'Terminou antes do tempo';
 
 export interface PartRecord {
   id: string;

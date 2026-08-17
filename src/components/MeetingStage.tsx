@@ -357,7 +357,7 @@ export function MeetingStage({
                               <span className={cn(
                                 "font-bold uppercase",
                                 historyItem.status === 'Excedido' ? "text-amber-500 dark:text-amber-400" :
-                                historyItem.status === 'Abaixo do tempo' ? "text-sky-500 dark:text-sky-400" :
+                                historyItem.status === 'Terminou antes do tempo' ? "text-sky-500 dark:text-sky-400" :
                                 "text-emerald-500 dark:text-emerald-400"
                               )}>
                                 {historyItem.status}

@@ -425,7 +425,7 @@ export function useMeetingTimer() {
           hideSpeaker: currentPart.hideSpeaker,
           plannedTime: currentPart.plannedTime,
           actualTime: Math.max(0, Math.round(actualTimeSpent)),
-          status: overTime > 0 ? 'Excedido' : 'No tempo correto',
+          status: overTime > 0 ? 'Excedido' : (actualTimeSpent < (currentPart.plannedTime * 60) / 2 ? 'Terminou antes do tempo' : 'No tempo correto'),
           hasCounsel: currentPart.hasCounsel,
           counselRecorded: currentPart.hasCounsel
         });
