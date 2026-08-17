@@ -410,11 +410,6 @@ export function Setup({
                                           • +1 min conselho
                                         </span>
                                       )}
-                                      {part.flexible && (
-                                        <span className="text-sky-600 dark:text-sky-400 font-semibold">
-                                          • Flexível
-                                        </span>
-                                      )}
                                     </div>
                                   </div>
                                 </div>
