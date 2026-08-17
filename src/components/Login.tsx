@@ -47,9 +47,12 @@ export function Login({ onSuccess }: LoginProps) {
           </div>
         </div>
         
-        <h1 className="text-2xl font-black text-center text-slate-900 dark:text-white mb-2">
+        <h1 className="text-2xl font-black text-center text-slate-900 dark:text-white mb-0">
           Assistente de Palco
         </h1>
+        <p className="text-center text-[#295E9F] dark:text-[#4A6CA7] font-bold text-sm mb-2">
+          Jd. Rosana - Ferraz de Vasconcelos, SP
+        </p>
         <p className="text-center text-slate-500 dark:text-slate-400 text-sm mb-8">
           Faça login para acessar o sistema.
         </p>

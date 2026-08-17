@@ -145,35 +145,6 @@ export function History({
     <div className="w-full min-h-screen bg-transparent flex flex-col items-center pb-36 transition-colors duration-500">
       <div className="w-full max-w-4xl p-4 sm:p-6 md:py-10 space-y-6">
         
-        {/* Banner de Confirmação de Término */}
-        <div className="bg-white/10 dark:bg-black/20 border-2 border-white/20 rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-white text-emerald-700 flex items-center justify-center font-bold shrink-0 shadow-md">
-              <CheckCircle2 className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-100">
-                  Reunião Concluída
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-900/40 text-emerald-100 border border-emerald-400/30">
-                  Histórico Gravado
-                </span>
-              </div>
-              <p className="text-sm font-bold text-white mt-0.5">
-                Você está na tela de Relatório Oficial e Resumo Imutável
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onNewMeeting}
-            className="hidden sm:flex px-4 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-xl shadow-md transition-all items-center gap-1.5 cursor-pointer shrink-0 border border-emerald-700"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Nova Reunião
-          </button>
-        </div>
-
         {/* Header */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-500/30 dark:border-emerald-700/50 pb-6">
           <div>
@@ -392,19 +363,12 @@ export function History({
                         </h4>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Presidente: <span className="font-semibold text-slate-700 dark:text-slate-300">{m.presidente}</span> • {m.congregacao}
+                        {m.congregacao}
                       </p>
                     </div>
 
                     <div className="flex items-center justify-between sm:justify-end gap-4">
-                      <div className="text-right font-mono">
-                        <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                          {m.duracao_real_minutos} min
-                        </div>
-                        <div className={cn("text-xs font-bold", mBalanceColors.text)}>
-                          {formatBalanceDisplay(m.saldo_final_segundos)}
-                        </div>
-                      </div>
+                      
 
                       <div className="flex items-center gap-2">
                         <button

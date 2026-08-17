@@ -99,19 +99,12 @@ export function Setup({
               <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                 Assistente de Palco
               </h1>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">
+                Jd. Rosana - Ferraz de Vasconcelos, SP
+              </p>
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {archivedCount > 0 && (
-                <button
-                  onClick={onViewArchive}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-[#295E9F] transition-all flex items-center gap-1.5 shadow-sm shrink-0"
-                  title="Ver reuniões passadas"
-                >
-                  <FileText className="w-4 h-4 text-[#295E9F] dark:text-[#4A6CA7]" />
-                  Histórico ({archivedCount})
-                </button>
-              )}
 
               <div className="flex bg-white dark:bg-[#1E293B] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
                 <button 
@@ -140,6 +133,16 @@ export function Setup({
                 >
                   <BarChart3 className="w-4 h-4" />
                   Gráficos
+                </button>
+                <button 
+                  onClick={onViewArchive}
+                  className={cn("px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2", 
+                    "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  )}
+                  title="Ver reuniões passadas"
+                >
+                  <FileText className="w-4 h-4" />
+                  Histórico {archivedCount > 0 ? `(${archivedCount})` : ''}
                 </button>
               </div>
             </div>
@@ -348,12 +351,12 @@ export function Setup({
         {activeTab === 'programacao' && (
           <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-400">
             {/* Seção Ocultável: Importar PDF da Programação do Mês */}
-            <div className="bg-white/40 dark:bg-[#1E293B]/40 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 rounded-3xl overflow-hidden shadow-lg transition-all">
+            <div className="bg-[#295E9F]/5 dark:bg-[#295E9F]/10 backdrop-blur-xl border border-[#295E9F]/20 dark:border-[#295E9F]/30 rounded-3xl overflow-hidden shadow-lg shadow-[#295E9F]/5 transition-all">
               {/* Cabeçalho Clicável para Mostrar / Ocultar */}
               <button
                 type="button"
                 onClick={() => setIsPdfSectionOpen(!isPdfSectionOpen)}
-                className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-white/50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-[#295E9F]/5 dark:hover:bg-[#295E9F]/10 transition-colors cursor-pointer"
                 aria-expanded={isPdfSectionOpen}
               >
                 <div className="flex items-center gap-3">
@@ -370,7 +373,7 @@ export function Setup({
                           ✅ Aplicada: {importedWeekLabel}
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#295E9F]/10 dark:bg-[#295E9F]/20 text-[#295E9F] dark:text-[#4A6CA7] border border-[#295E9F]/20 dark:border-[#295E9F]/30">
                           Opcional
                         </span>
                       )}
@@ -387,7 +390,7 @@ export function Setup({
                   <span className="text-xs font-bold text-[#295E9F] dark:text-[#4A6CA7] hidden sm:inline">
                     {isPdfSectionOpen ? "Ocultar" : "Mostrar"}
                   </span>
-                  <div className="w-8 h-8 rounded-xl bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                  <div className="w-8 h-8 rounded-xl bg-[#295E9F]/10 dark:bg-[#295E9F]/20 text-[#295E9F] dark:text-[#4A6CA7] flex items-center justify-center border border-[#295E9F]/20 dark:border-[#295E9F]/30">
                     {isPdfSectionOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </div>
                 </div>
@@ -395,8 +398,8 @@ export function Setup({
 
               {/* Conteúdo Expandido */}
               {isPdfSectionOpen && (
-                <div className="p-4 sm:p-5 pt-0 border-t border-slate-200/50 dark:border-slate-700/50 space-y-4 animate-in fade-in duration-200">
-                  <div className="p-4 bg-white/60 dark:bg-[#0F172A]/60 backdrop-blur-md rounded-2xl border border-white/50 dark:border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="p-4 sm:p-5 pt-0 border-t border-[#295E9F]/10 dark:border-[#295E9F]/20 space-y-4 animate-in fade-in duration-200">
+                  <div className="p-4 bg-white/50 dark:bg-[#0F172A]/40 backdrop-blur-md rounded-2xl border border-[#295E9F]/20 dark:border-[#295E9F]/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="space-y-1">
                       <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium">
                         Envie o arquivo PDF da programação mensal da congregação. O sistema preenche automaticamente todos os temas, oradores, leitores e cânticos.

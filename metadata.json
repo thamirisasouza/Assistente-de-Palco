@@ -1,7 +1,8 @@
 {
   "name": "Assistente de Palco",
-  "description": "Cronômetro de alta precisão e gestão das reuniões congregacionais com controle de tempo ao vivo e relatórios.",
+  "description": "Jd. Rosana - Ferraz de Vasconcelos, SP",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
-
