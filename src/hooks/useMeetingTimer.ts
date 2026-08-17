@@ -14,12 +14,14 @@ import {
   TOTAL_PLANNED_MEETING_MINUTES
 } from '../types';
 import {
+  auth,
   fetchFirebaseSettings,
   saveFirebaseSettings,
   fetchFirebaseMeetings,
   saveFirebaseMeeting,
   deleteFirebaseMeeting,
-  subscribeToFirebaseMeetings
+  subscribeToFirebaseMeetings,
+  subscribeToFirebaseSettings
 } from '../lib/firebase';
 
 const STORAGE_SETTINGS_KEY = 'jw_stage_settings';
@@ -71,7 +73,7 @@ export function useMeetingTimer() {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(settings));
-    saveFirebaseSettings(settings).catch(() => {});
+    // saveFirebaseSettings is now handled per-action to avoid infinite loops with realtime sync
   }, [settings]);
 
   // Archive of completed meetings - strictly backed by Cloud Firestore
@@ -113,6 +115,14 @@ export function useMeetingTimer() {
     syncWithFirebase();
 
     // Inscrição em tempo real para sincronização com o banco de dados oficial
+    const unsubscribeSettings = subscribeToFirebaseSettings((liveSettings) => {
+      if (!isMounted || !liveSettings) return;
+      if (liveSettings.name || liveSettings.brothers?.length) {
+        setSettings(liveSettings);
+        localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(liveSettings));
+      }
+    });
+
     const unsubscribe = subscribeToFirebaseMeetings((liveMeetings) => {
       if (!isMounted) return;
       const cleanLive = (liveMeetings || []).filter(m => !m.id.startsWith('demo-'));
@@ -123,6 +133,7 @@ export function useMeetingTimer() {
     return () => {
       isMounted = false;
       if (typeof unsubscribe === 'function') unsubscribe();
+      if (typeof unsubscribeSettings === 'function') unsubscribeSettings();
     };
   }, []);
 
@@ -224,42 +235,53 @@ export function useMeetingTimer() {
   };
 
   // Settings operations
-  const updateSettings = (updates: Partial<CongregationSettings>) => {
-    if (updates.weekType && updates.weekType !== settings.weekType && state.status === 'setup') {
-      const templateParts = getPartsForWeekType(updates.weekType);
-      setState(prev => ({
-        ...prev,
-        parts: templateParts
-      }));
+    const updateSettings = (updates: Partial<CongregationSettings>) => {
+    if (state.status !== 'setup') {
+      console.warn("Settings can only be changed during setup.");
+      return;
     }
-    setSettings(prev => ({ ...prev, ...updates }));
+    setSettings(prev => {
+      const next = { ...prev, ...updates };
+      saveFirebaseSettings(next).catch(() => {});
+      return next;
+    });
   };
 
-  const updateBrother = (id: string, updates: Partial<Brother>) => {
-    setSettings(prev => ({
-      ...prev,
-      brothers: prev.brothers.map(b => b.id === id ? { ...b, ...updates } : b).sort((a, b) => a.name.localeCompare(b.name))
-    }));
+    const updateBrother = (id: string, updates: Partial<Brother>) => {
+    setSettings(prev => {
+      const next = {
+        ...prev,
+        brothers: prev.brothers.map(b => b.id === id ? { ...b, ...updates } : b).sort((a, b) => a.name.localeCompare(b.name))
+      };
+      saveFirebaseSettings(next).catch(() => {});
+      return next;
+    });
   };
 
-  const removeBrother = (id: string) => {
-    setSettings(prev => ({
-      ...prev,
-      brothers: prev.brothers.filter(b => b.id !== id)
-    }));
+    const removeBrother = (id: string) => {
+    setSettings(prev => {
+      const next = {
+        ...prev,
+        brothers: prev.brothers.filter(b => b.id !== id)
+      };
+      saveFirebaseSettings(next).catch(() => {});
+      return next;
+    });
   };
 
-  const addBrother = (name: string, role: Role) => {
+    const addBrother = (name: string, role: Role) => {
     if (!name.trim()) return;
     setSettings(prev => {
       if (prev.brothers.some(b => b.name.toLowerCase() === name.toLowerCase())) return prev;
       const uniqueId = `br-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       const newBrothers = [...prev.brothers, { id: uniqueId, name, role }];
-      return { ...prev, brothers: newBrothers.sort((a, b) => a.name.localeCompare(b.name)) };
+      const next = { ...prev, brothers: newBrothers.sort((a, b) => a.name.localeCompare(b.name)) };
+      saveFirebaseSettings(next).catch(() => {});
+      return next;
     });
   };
 
-  const addBrothersBatch = (
+    const addBrothersBatch = (
     items: Array<string | { name: string; role?: Role }>,
     defaultRole: Role = "Publicador"
   ) => {
@@ -272,7 +294,6 @@ export function useMeetingTimer() {
         const rawName = typeof item === 'string' ? item : item.name;
         const itemRole = typeof item === 'object' && item.role ? item.role : defaultRole;
         const cleanName = rawName.trim();
-        
         if (cleanName && !existingMap.has(cleanName.toLowerCase())) {
           existingMap.add(cleanName.toLowerCase());
           toAdd.push({
@@ -282,10 +303,13 @@ export function useMeetingTimer() {
           });
         }
       });
-
-      if (toAdd.length === 0) return prev;
-      const combined = [...prev.brothers, ...toAdd];
-      return { ...prev, brothers: combined.sort((a, b) => a.name.localeCompare(b.name)) };
+      
+      if (!toAdd.length) return prev;
+      
+      const newBrothers = [...prev.brothers, ...toAdd];
+      const next = { ...prev, brothers: newBrothers.sort((a, b) => a.name.localeCompare(b.name)) };
+      saveFirebaseSettings(next).catch(() => {});
+      return next;
     });
   };
 
@@ -515,6 +539,8 @@ export function useMeetingTimer() {
       saldo_final_segundos: saldoFinalSegundos,
       saldo_final_minutos: saldoFinalMinutos,
       indice_final_percentual: indiceFinalPercentual,
+      salvo_por_email: auth.currentUser?.email || undefined,
+      user_email: auth.currentUser?.email || undefined,
       partes: state.history
     };
 

@@ -105,6 +105,25 @@ export async function saveFirebaseSettings(settings: CongregationSettings): Prom
   }
 }
 
+// Inscrição em tempo real para configurações da congregação
+export function subscribeToFirebaseSettings(callback: (settings: CongregationSettings | null) => void) {
+  try {
+    const docRef = doc(db, CONGREGATION_DOC_PATH);
+    return onSnapshot(docRef, (snapshot) => {
+      if (snapshot.exists()) {
+        callback(snapshot.data() as CongregationSettings);
+      } else {
+        callback(null);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, CONGREGATION_DOC_PATH);
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, CONGREGATION_DOC_PATH);
+    return () => {};
+  }
+}
+
 // Carregar histórico de reuniões do Firebase
 export async function fetchFirebaseMeetings(): Promise<CompletedMeeting[]> {
   try {

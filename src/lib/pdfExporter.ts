@@ -358,6 +358,11 @@ export function exportMeetingToPdf(meeting: CompletedMeeting) {
     const secs = String(now.getSeconds()).padStart(2, '0');
     const timestampStr = `${day}/${month}/${year}, ${hours}:${mins}:${secs}`;
 
+    const userEmailStr = meeting.salvo_por_email || meeting.user_email ? `Salvo por: ${meeting.salvo_por_email || meeting.user_email}` : '';
+    if (userEmailStr) {
+      doc.text(userEmailStr, marginLeft, pageHeight - 12);
+    }
+
     const dateStrWidth = doc.getTextWidth(timestampStr);
     doc.text(timestampStr, marginLeft + contentWidth - dateStrWidth, pageHeight - 12);
   }

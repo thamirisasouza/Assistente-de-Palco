@@ -102,6 +102,7 @@ export function History({
       `📅 *Data:* ${activeMeeting.data_formatada}`,
       `🏛️ *Congregação:* ${activeMeeting.congregacao}`,
       `👤 *Presidente:* ${activeMeeting.presidente}`,
+      ...(activeMeeting.salvo_por_email || activeMeeting.user_email ? [`📧 *Salvo por:* ${activeMeeting.salvo_por_email || activeMeeting.user_email}`] : []),
       ...(activeMeeting.tipo_semana !== 'Normal' ? [`🏷️ *Modalidade:* ${activeMeeting.tipo_semana}`] : []),
       ``,
       `⏱️ *Duração Real:* ${activeMeeting.duracao_real_minutos} min (Planejado: ${activeMeeting.duracao_planejada_minutos} min)`,
@@ -159,8 +160,14 @@ export function History({
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
               Resumo & Relatório da Reunião
             </h1>
-            <p className="text-sm text-emerald-100">
-              {activeMeeting.data_formatada} • {activeMeeting.congregacao}
+            <p className="text-sm text-emerald-100 flex items-center gap-2 flex-wrap">
+              <span>{activeMeeting.data_formatada} • {activeMeeting.congregacao}</span>
+              {(activeMeeting.salvo_por_email || activeMeeting.user_email) && (
+                <span className="inline-flex items-center gap-1 text-emerald-100/90 text-xs bg-emerald-900/40 px-2 py-0.5 rounded-md border border-emerald-400/20">
+                  <User className="w-3 h-3" />
+                  {activeMeeting.salvo_por_email || activeMeeting.user_email}
+                </span>
+              )}
             </p>
           </div>
 
@@ -202,8 +209,8 @@ export function History({
           </div>
         </header>
 
-        {/* Metadados da Reunião (visíveis nas abas resumo e arquivo) */}
-        {activeTab !== 'graficos' && (
+        {/* Metadados da Reunião (visíveis somente na aba resumo) */}
+        {activeTab === 'resumo' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Presidente</span>
@@ -362,9 +369,18 @@ export function History({
                           {m.data_formatada}
                         </h4>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {m.congregacao}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap text-xs text-slate-500 dark:text-slate-400">
+                        <span>{m.congregacao}</span>
+                        {(m.salvo_por_email || m.user_email) && (
+                          <>
+                            <span>•</span>
+                            <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium">
+                              <User className="w-3.5 h-3.5 text-[#295E9F] dark:text-[#4A6CA7]" />
+                              Salvo por: <strong className="text-slate-700 dark:text-slate-200">{m.salvo_por_email || m.user_email}</strong>
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between sm:justify-end gap-4">

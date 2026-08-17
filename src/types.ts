@@ -65,6 +65,8 @@ export interface CompletedMeeting {
   saldo_final_segundos: number;
   saldo_final_minutos: number;
   indice_final_percentual: number;
+  salvo_por_email?: string;
+  user_email?: string;
   partes: PartRecord[];
 }
 
