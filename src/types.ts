@@ -2,10 +2,7 @@ export type Role = 'Ancião' | 'Servo Ministerial' | 'Publicador';
 
 export type WeekType = 
   | 'Normal' 
-  | 'Visita do SC (Semana)' 
-  | 'Visita do SC (Final de Semana)' 
-  | 'Fim de Semana Normal' 
-  | 'Semana de Assembleia';
+  | 'Visita do SC (Semana)';
 
 export interface Brother {
   id: string;
@@ -163,37 +160,12 @@ export const DEFAULT_PARTS_SC_MIDWEEK: MeetingPart[] = [
   { id: "conclusao_cantico", title: "Cântico e Oração Finais (Oração pelo SC)", plannedTime: 6, flexible: false, hasCounsel: false, speaker: "Superintendente de Circuito" }
 ];
 
-// Final de Semana com Visita do Superintendente: Discurso inicial / Resumo Sentinela / Discurso final (105 min)
-export const DEFAULT_PARTS_SC_WEEKEND: MeetingPart[] = [
-  { id: "fds_abertura", title: "Cântico e Oração Iniciais", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: false },
-  { id: "fds_discurso_inicial", partNumber: 1, title: "Discurso Público (Superintendente de Circuito)", plannedTime: 30, flexible: false, hasCounsel: false, speaker: "Superintendente de Circuito" },
-  { id: "fds_cantico_meio", title: "Cântico Intermediário", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: true },
-  { id: "fds_resumo_sentinela", partNumber: 2, title: "Resumo de A Sentinela (30 min)", plannedTime: 30, flexible: false, hasCounsel: false, supportsAssistant: true },
-  { id: "fds_discurso_final", partNumber: 3, title: "Discurso de Serviço / Final (Superintendente de Circuito)", plannedTime: 30, flexible: true, hasCounsel: false, speaker: "Superintendente de Circuito" },
-  { id: "fds_conclusao", title: "Cântico e Oração Finais (Oração pelo SC)", plannedTime: 5, flexible: false, hasCounsel: false, speaker: "Superintendente de Circuito" }
-];
-
-// Final de Semana Normal (105 min)
-export const DEFAULT_PARTS_WEEKEND_NORMAL: MeetingPart[] = [
-  { id: "fds_abertura", title: "Cântico e Oração Iniciais", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: false },
-  { id: "fds_discurso_inicial", partNumber: 1, title: "Discurso Público (30 min)", plannedTime: 30, flexible: false, hasCounsel: false },
-  { id: "fds_cantico_meio", title: "Cântico Intermediário", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: true },
-  { id: "fds_estudo_sentinela", partNumber: 2, title: "Estudo de A Sentinela (60 min)", plannedTime: 60, flexible: true, hasCounsel: false, supportsAssistant: true },
-  { id: "fds_conclusao", title: "Cântico e Oração Finais", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: false }
-];
-
 export const DEFAULT_PARTS = DEFAULT_PARTS_NORMAL;
 
 export function getPartsForWeekType(weekType: WeekType): MeetingPart[] {
   switch (weekType) {
     case 'Visita do SC (Semana)':
       return JSON.parse(JSON.stringify(DEFAULT_PARTS_SC_MIDWEEK));
-    case 'Visita do SC (Final de Semana)':
-      return JSON.parse(JSON.stringify(DEFAULT_PARTS_SC_WEEKEND));
-    case 'Fim de Semana Normal':
-      return JSON.parse(JSON.stringify(DEFAULT_PARTS_WEEKEND_NORMAL));
-    case 'Semana de Assembleia':
-      return [];
     case 'Normal':
     default:
       return JSON.parse(JSON.stringify(DEFAULT_PARTS_NORMAL));

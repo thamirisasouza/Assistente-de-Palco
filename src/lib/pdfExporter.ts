@@ -81,8 +81,7 @@ export function exportMeetingToPdf(meeting: CompletedMeeting) {
   let y = 16;
 
   // 1. Cabeçalho Geral (Página 1)
-  const isWeekend = meeting.tipo_semana === 'Visita do SC (Final de Semana)' || meeting.tipo_semana === 'Fim de Semana Normal';
-  const isSCVisit = meeting.tipo_semana === 'Visita do SC (Semana)' || meeting.tipo_semana === 'Visita do SC (Final de Semana)';
+  const isSCVisit = meeting.tipo_semana === 'Visita do SC (Semana)';
 
   const drawPageHeader = () => {
     doc.setFont('helvetica', 'bold');
@@ -92,12 +91,7 @@ export function exportMeetingToPdf(meeting: CompletedMeeting) {
     const congTitle = meeting.congregacao || monthSchedule?.congregationName || "Jardim Rosana - Ferraz de Vasconcelos SP";
     doc.text(congTitle, marginLeft, y);
 
-    let headerRight = "Reunião do meio de semana";
-    if (isWeekend) {
-      headerRight = isSCVisit ? "Reunião do fim de semana • Visita do SC" : "Reunião do fim de semana";
-    } else if (isSCVisit) {
-      headerRight = "Reunião do meio de semana • Visita do SC";
-    }
+    let headerRight = isSCVisit ? "Reunião do meio de semana • Visita do SC" : "Reunião do meio de semana";
 
     const rightHeaderWidth = doc.getTextWidth(headerRight);
     doc.text(headerRight, marginLeft + contentWidth - rightHeaderWidth, y);
@@ -241,160 +235,105 @@ export function exportMeetingToPdf(meeting: CompletedMeeting) {
     y += 4.5;
 
     // Mapeamento das partes registradas
-    const isWeekendMeeting = targetMeeting.tipo_semana === 'Visita do SC (Final de Semana)' || targetMeeting.tipo_semana === 'Fim de Semana Normal';
+    // Mapeamento das partes registradas
+    // ESTRUTURA DE MEIO DE SEMANA (Normal ou Visita do SC)
+    const pAbertura = targetMeeting.partes.find(p => p.id === 'abertura');
+    const pComentarios = targetMeeting.partes.find(p => p.id === 'comentarios');
+    const pDiscurso = targetMeeting.partes.find(p => p.id === 'discurso');
+    const pJoias = targetMeeting.partes.find(p => p.id === 'joias');
+    const pLeitura = targetMeeting.partes.find(p => p.id === 'leitura');
+    const pMin1 = targetMeeting.partes.find(p => p.id === 'ministerio1');
+    const pMin2 = targetMeeting.partes.find(p => p.id === 'ministerio2');
+    const pMin3 = targetMeeting.partes.find(p => p.id === 'ministerio3');
+    const pVidaCantico = targetMeeting.partes.find(p => p.id === 'vida_cantico');
+    const pVida1 = targetMeeting.partes.find(p => p.id === 'vida1');
+    const pVida2 = targetMeeting.partes.find(p => p.id === 'vida2');
+    const pDiscursoSC = targetMeeting.partes.find(p => p.id === 'discurso_sc');
+    const pEstudo = targetMeeting.partes.find(p => p.id === 'estudo');
+    const pComentFinais = targetMeeting.partes.find(p => p.id === 'comentarios_finais');
+    const pConclusao = targetMeeting.partes.find(p => p.id === 'conclusao_cantico');
 
-    if (isWeekendMeeting) {
-      // ESTRUTURA DE FINAL DE SEMANA
-      const pFdsAbertura = targetMeeting.partes.find(p => p.id === 'fds_abertura' || p.id === 'abertura');
-      const pDiscursoInicial = targetMeeting.partes.find(p => p.id === 'fds_discurso_inicial' || p.id === 'discurso');
-      const pCanticoMeio = targetMeeting.partes.find(p => p.id === 'fds_cantico_meio' || p.id === 'vida_cantico');
-      const pResumoSentinela = targetMeeting.partes.find(p => p.id === 'fds_resumo_sentinela' || p.id === 'fds_estudo_sentinela' || p.id === 'estudo');
-      const pDiscursoFinal = targetMeeting.partes.find(p => p.id === 'fds_discurso_final' || p.id === 'discurso_sc');
-      const pFdsConclusao = targetMeeting.partes.find(p => p.id === 'fds_conclusao' || p.id === 'conclusao_cantico');
+    // Cântico inicial e Oração inicial
+    const canticoInicio = pAbertura?.title || "Cântico inicial";
+    const oracaoInicio = pAbertura?.speaker || pAbertura?.assistant;
+    drawScheduleRow(canticoInicio, pAbertura?.actualTime, pAbertura?.plannedTime || 5, oracaoInicio, true);
 
-      // 1. Cântico e Oração Iniciais
-      const cInicio = pFdsAbertura?.title || "Cântico e oração iniciais";
-      const oracaoInic = pFdsAbertura?.speaker || pFdsAbertura?.assistant;
-      drawScheduleRow(cInicio, pFdsAbertura?.actualTime, pFdsAbertura?.plannedTime || 5, oracaoInic, true);
+    // Comentários iniciais
+    drawScheduleRow("Comentários iniciais", pComentarios?.actualTime, pComentarios?.plannedTime || 1);
 
-      // 2. DISCURSO PÚBLICO
-      drawSectionBanner("DISCURSO PÚBLICO", [63, 100, 126]);
-      if (pDiscursoInicial) {
-        const title = cleanPartTitle(pDiscursoInicial.title);
-        const num = pDiscursoInicial.partNumber != null ? `${pDiscursoInicial.partNumber}. ` : '1. ';
-        drawScheduleRow(`${num}${title} (${pDiscursoInicial.plannedTime} min)`, pDiscursoInicial.actualTime, pDiscursoInicial.plannedTime, pDiscursoInicial.speaker);
-      }
+    // SEÇÃO 1: TESOUROS DA PALAVRA DE DEUS
+    drawSectionBanner("TESOUROS DA PALAVRA DE DEUS", [63, 100, 126]);
 
-      y += 1.0;
-
-      // 3. CÂNTICO INTERMEDIÁRIO
-      if (pCanticoMeio) {
-        drawScheduleRow(pCanticoMeio.title || "Cântico intermediário", pCanticoMeio.actualTime, pCanticoMeio.plannedTime || 5);
-      }
-
-      // 4. ESTUDO DE A SENTINELA
-      drawSectionBanner("ESTUDO DE A SENTINELA", [164, 118, 42]);
-      if (pResumoSentinela) {
-        const title = cleanPartTitle(pResumoSentinela.title);
-        const assigned = pResumoSentinela.assistant ? `${pResumoSentinela.speaker || '—'} / ${pResumoSentinela.assistant}` : (pResumoSentinela.speaker || '—');
-        const num = pResumoSentinela.partNumber != null ? `${pResumoSentinela.partNumber}. ` : '2. ';
-        drawScheduleRow(`${num}${title} (${pResumoSentinela.plannedTime} min)`, pResumoSentinela.actualTime, pResumoSentinela.plannedTime, assigned);
-      }
-
-      // 5. DISCURSO FINAL DO SUPERINTENDENTE (Caso seja visita)
-      if (pDiscursoFinal) {
-        y += 1.0;
-        drawSectionBanner("DISCURSO DE SERVIÇO DO SUPERINTENDENTE", [140, 39, 44]);
-        const title = cleanPartTitle(pDiscursoFinal.title);
-        const num = pDiscursoFinal.partNumber != null ? `${pDiscursoFinal.partNumber}. ` : '3. ';
-        drawScheduleRow(`${num}${title} (${pDiscursoFinal.plannedTime} min)`, pDiscursoFinal.actualTime, pDiscursoFinal.plannedTime, pDiscursoFinal.speaker);
-      }
-
-      // 6. CÂNTICO E ORAÇÃO FINAIS
-      const cFim = pFdsConclusao?.title || "Cântico e oração finais";
-      const oracaoFim = pFdsConclusao?.speaker || pFdsConclusao?.assistant;
-      drawScheduleRow(cFim, pFdsConclusao?.actualTime, pFdsConclusao?.plannedTime || 5, oracaoFim, true);
-
-    } else {
-      // ESTRUTURA DE MEIO DE SEMANA (Normal ou Visita do SC)
-      const pAbertura = targetMeeting.partes.find(p => p.id === 'abertura');
-      const pComentarios = targetMeeting.partes.find(p => p.id === 'comentarios');
-      const pDiscurso = targetMeeting.partes.find(p => p.id === 'discurso');
-      const pJoias = targetMeeting.partes.find(p => p.id === 'joias');
-      const pLeitura = targetMeeting.partes.find(p => p.id === 'leitura');
-      const pMin1 = targetMeeting.partes.find(p => p.id === 'ministerio1');
-      const pMin2 = targetMeeting.partes.find(p => p.id === 'ministerio2');
-      const pMin3 = targetMeeting.partes.find(p => p.id === 'ministerio3');
-      const pVidaCantico = targetMeeting.partes.find(p => p.id === 'vida_cantico');
-      const pVida1 = targetMeeting.partes.find(p => p.id === 'vida1');
-      const pVida2 = targetMeeting.partes.find(p => p.id === 'vida2');
-      const pDiscursoSC = targetMeeting.partes.find(p => p.id === 'discurso_sc');
-      const pEstudo = targetMeeting.partes.find(p => p.id === 'estudo');
-      const pComentFinais = targetMeeting.partes.find(p => p.id === 'comentarios_finais');
-      const pConclusao = targetMeeting.partes.find(p => p.id === 'conclusao_cantico');
-
-      // Cântico inicial e Oração inicial
-      const canticoInicio = pAbertura?.title || "Cântico inicial";
-      const oracaoInicio = pAbertura?.speaker || pAbertura?.assistant;
-      drawScheduleRow(canticoInicio, pAbertura?.actualTime, pAbertura?.plannedTime || 5, oracaoInicio, true);
-
-      // Comentários iniciais
-      drawScheduleRow("Comentários iniciais", pComentarios?.actualTime, pComentarios?.plannedTime || 1);
-
-      // SEÇÃO 1: TESOUROS DA PALAVRA DE DEUS
-      drawSectionBanner("TESOUROS DA PALAVRA DE DEUS", [63, 100, 126]);
-
-      if (pDiscurso) {
-        const title = cleanPartTitle(pDiscurso.title);
-        const num = pDiscurso.partNumber != null ? `${pDiscurso.partNumber}. ` : '1. ';
-        drawScheduleRow(`${num}${title} (${pDiscurso.plannedTime} min)`, pDiscurso.actualTime, pDiscurso.plannedTime, pDiscurso.speaker);
-      }
-      if (pJoias) {
-        const title = cleanPartTitle(pJoias.title);
-        const displayTitle = title.toLowerCase().includes('joias') ? title : 'Joias espirituais';
-        const num = pJoias.partNumber != null ? `${pJoias.partNumber}. ` : '2. ';
-        drawScheduleRow(`${num}${displayTitle} (${pJoias.plannedTime} min)`, pJoias.actualTime, pJoias.plannedTime, pJoias.speaker);
-      }
-      if (pLeitura) {
-        const title = cleanPartTitle(pLeitura.title);
-        const displayTitle = title.toLowerCase().includes('leitura') ? title : 'Leitura da Bíblia';
-        const num = pLeitura.partNumber != null ? `${pLeitura.partNumber}. ` : '3. ';
-        drawScheduleRow(`${num}${displayTitle} (${pLeitura.plannedTime} min)`, pLeitura.actualTime, pLeitura.plannedTime, pLeitura.speaker);
-      }
-
-      y += 1.0;
-
-      // SEÇÃO 2: FAÇA SEU MELHOR NO MINISTÉRIO
-      drawSectionBanner("FAÇA SEU MELHOR NO MINISTÉRIO", [164, 118, 42]);
-
-      let fallbackMinNum = 4;
-      [pMin1, pMin2, pMin3].forEach((pMin) => {
-        if (pMin) {
-          const title = cleanPartTitle(pMin.title);
-          const assigned = pMin.assistant ? `${pMin.speaker || '—'} / ${pMin.assistant}` : (pMin.speaker || '—');
-          const num = pMin.partNumber != null ? `${pMin.partNumber}. ` : `${fallbackMinNum}. `;
-          drawScheduleRow(`${num}${title} (${pMin.plannedTime} min)`, pMin.actualTime, pMin.plannedTime, assigned);
-          fallbackMinNum++;
-        }
-      });
-
-      y += 1.0;
-
-      // SEÇÃO 3: NOSSA VIDA CRISTÃ
-      drawSectionBanner("NOSSA VIDA CRISTÃ", [140, 39, 44]);
-
-      if (pVidaCantico) {
-        drawScheduleRow(pVidaCantico.title || "Cântico intermediário", pVidaCantico.actualTime, pVidaCantico.plannedTime || 5);
-      }
-
-      if (pVida1) {
-        const title = cleanPartTitle(pVida1.title);
-        const num = pVida1.partNumber != null ? `${pVida1.partNumber}. ` : '7. ';
-        drawScheduleRow(`${num}${title} (${pVida1.plannedTime} min)`, pVida1.actualTime, pVida1.plannedTime, pVida1.speaker);
-      }
-
-      if (pVida2) {
-        const title = cleanPartTitle(pVida2.title);
-        const num = pVida2.partNumber != null ? `${pVida2.partNumber}. ` : '8. ';
-        drawScheduleRow(`${num}${title} (${pVida2.plannedTime} min)`, pVida2.actualTime, pVida2.plannedTime, pVida2.speaker);
-      }
-
-      // Visita do SC na semana: Discurso do Super no lugar do livro final
-      if (pDiscursoSC) {
-        const num = pDiscursoSC.partNumber != null ? `${pDiscursoSC.partNumber}. ` : (pVida2 ? '9. ' : '8. ');
-        drawScheduleRow(`${num}Discurso de serviço do Superintendente de Circuito (${pDiscursoSC.plannedTime} min)`, pDiscursoSC.actualTime, pDiscursoSC.plannedTime, pDiscursoSC.speaker);
-      } else if (pEstudo) {
-        const assigned = pEstudo.assistant ? `${pEstudo.speaker || '—'} / ${pEstudo.assistant}` : (pEstudo.speaker || '—');
-        const num = pEstudo.partNumber != null ? `${pEstudo.partNumber}. ` : (pVida2 ? '9. ' : '8. ');
-        drawScheduleRow(`${num}Estudo bíblico de congregação (${pEstudo.plannedTime} min)`, pEstudo.actualTime, pEstudo.plannedTime, assigned);
-      }
-
-      drawScheduleRow("Comentários finais", pComentFinais?.actualTime, pComentFinais?.plannedTime || 3);
-
-      const canticoFinal = pConclusao?.title || "Cântico final";
-      const oracaoFinal = pConclusao?.speaker || pConclusao?.assistant;
-      drawScheduleRow(canticoFinal, pConclusao?.actualTime, pConclusao?.plannedTime || 6, oracaoFinal, true);
+    if (pDiscurso) {
+      const title = cleanPartTitle(pDiscurso.title);
+      const num = pDiscurso.partNumber != null ? `${pDiscurso.partNumber}. ` : '1. ';
+      drawScheduleRow(`${num}${title} (${pDiscurso.plannedTime} min)`, pDiscurso.actualTime, pDiscurso.plannedTime, pDiscurso.speaker);
     }
+    if (pJoias) {
+      const title = cleanPartTitle(pJoias.title);
+      const displayTitle = title.toLowerCase().includes('joias') ? title : 'Joias espirituais';
+      const num = pJoias.partNumber != null ? `${pJoias.partNumber}. ` : '2. ';
+      drawScheduleRow(`${num}${displayTitle} (${pJoias.plannedTime} min)`, pJoias.actualTime, pJoias.plannedTime, pJoias.speaker);
+    }
+    if (pLeitura) {
+      const title = cleanPartTitle(pLeitura.title);
+      const displayTitle = title.toLowerCase().includes('leitura') ? title : 'Leitura da Bíblia';
+      const num = pLeitura.partNumber != null ? `${pLeitura.partNumber}. ` : '3. ';
+      drawScheduleRow(`${num}${displayTitle} (${pLeitura.plannedTime} min)`, pLeitura.actualTime, pLeitura.plannedTime, pLeitura.speaker);
+    }
+
+    y += 1.0;
+
+    // SEÇÃO 2: FAÇA SEU MELHOR NO MINISTÉRIO
+    drawSectionBanner("FAÇA SEU MELHOR NO MINISTÉRIO", [164, 118, 42]);
+
+    let fallbackMinNum = 4;
+    [pMin1, pMin2, pMin3].forEach((pMin) => {
+      if (pMin) {
+        const title = cleanPartTitle(pMin.title);
+        const assigned = pMin.assistant ? `${pMin.speaker || '—'} / ${pMin.assistant}` : (pMin.speaker || '—');
+        const num = pMin.partNumber != null ? `${pMin.partNumber}. ` : `${fallbackMinNum}. `;
+        drawScheduleRow(`${num}${title} (${pMin.plannedTime} min)`, pMin.actualTime, pMin.plannedTime, assigned);
+        fallbackMinNum++;
+      }
+    });
+
+    y += 1.0;
+
+    // SEÇÃO 3: NOSSA VIDA CRISTÃ
+    drawSectionBanner("NOSSA VIDA CRISTÃ", [140, 39, 44]);
+
+    if (pVidaCantico) {
+      drawScheduleRow(pVidaCantico.title || "Cântico intermediário", pVidaCantico.actualTime, pVidaCantico.plannedTime || 5);
+    }
+
+    if (pVida1) {
+      const title = cleanPartTitle(pVida1.title);
+      const num = pVida1.partNumber != null ? `${pVida1.partNumber}. ` : '7. ';
+      drawScheduleRow(`${num}${title} (${pVida1.plannedTime} min)`, pVida1.actualTime, pVida1.plannedTime, pVida1.speaker);
+    }
+
+    if (pVida2) {
+      const title = cleanPartTitle(pVida2.title);
+      const num = pVida2.partNumber != null ? `${pVida2.partNumber}. ` : '8. ';
+      drawScheduleRow(`${num}${title} (${pVida2.plannedTime} min)`, pVida2.actualTime, pVida2.plannedTime, pVida2.speaker);
+    }
+
+    // Visita do SC na semana: Discurso do Super no lugar do livro final
+    if (pDiscursoSC) {
+      const num = pDiscursoSC.partNumber != null ? `${pDiscursoSC.partNumber}. ` : (pVida2 ? '9. ' : '8. ');
+      drawScheduleRow(`${num}Discurso de serviço do Superintendente de Circuito (${pDiscursoSC.plannedTime} min)`, pDiscursoSC.actualTime, pDiscursoSC.plannedTime, pDiscursoSC.speaker);
+    } else if (pEstudo) {
+      const assigned = pEstudo.assistant ? `${pEstudo.speaker || '—'} / ${pEstudo.assistant}` : (pEstudo.speaker || '—');
+      const num = pEstudo.partNumber != null ? `${pEstudo.partNumber}. ` : (pVida2 ? '9. ' : '8. ');
+      drawScheduleRow(`${num}Estudo bíblico de congregação (${pEstudo.plannedTime} min)`, pEstudo.actualTime, pEstudo.plannedTime, assigned);
+    }
+
+    drawScheduleRow("Comentários finais", pComentFinais?.actualTime, pComentFinais?.plannedTime || 3);
+
+    const canticoFinal = pConclusao?.title || "Cântico final";
+    const oracaoFinal = pConclusao?.speaker || pConclusao?.assistant;
+    drawScheduleRow(canticoFinal, pConclusao?.actualTime, pConclusao?.plannedTime || 6, oracaoFinal, true);
 
     y += 2.5;
   };

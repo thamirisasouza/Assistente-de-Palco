@@ -83,6 +83,11 @@ export function Setup({
         <header className="mb-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
             <div>
+              <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] border border-[#295E9F]/20">
+                  1h 45m • Tempo Padrão
+                </div>
+              </div>
               <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                 Assistente de Palco
               </h1>
@@ -316,6 +321,80 @@ export function Setup({
 
         {activeTab === 'programacao' && (
           <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-400">
+            {/* Seção Ocultável: Importar PDF da Programação do Mês */}
+            <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm transition-all">
+              {/* Cabeçalho Clicável para Mostrar / Ocultar */}
+              <button
+                type="button"
+                onClick={() => setIsPdfSectionOpen(!isPdfSectionOpen)}
+                className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                aria-expanded={isPdfSectionOpen}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] flex items-center justify-center shrink-0">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                        Importar PDF da Programação do Mês
+                      </h3>
+                      {importedWeekLabel ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          ✅ Aplicada: {importedWeekLabel}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                          Opcional
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {isPdfSectionOpen 
+                        ? "Clique para ocultar o painel de importação" 
+                        : "Clique para abrir e enviar o arquivo PDF da congregação"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-bold text-[#295E9F] dark:text-[#4A6CA7] hidden sm:inline">
+                    {isPdfSectionOpen ? "Ocultar" : "Mostrar"}
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center">
+                    {isPdfSectionOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </div>
+                </div>
+              </button>
+
+              {/* Conteúdo Expandido */}
+              {isPdfSectionOpen && (
+                <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 dark:border-slate-800/80 space-y-4 animate-in fade-in duration-200">
+                  <div className="p-4 bg-slate-50 dark:bg-[#0F172A] rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium">
+                        Envie o arquivo PDF da programação mensal da congregação. O sistema preenche automaticamente todos os temas, oradores, leitores e cânticos.
+                      </p>
+                      {importedWeekLabel && (
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                          Programação atual carregada: {importedWeekLabel}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsImportModalOpen(true)}
+                      className="min-h-[48px] px-6 bg-[#295E9F] hover:bg-[#3474C2] text-white rounded-2xl font-bold text-xs sm:text-sm shadow-md shadow-[#295E9F]/20 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer w-full sm:w-auto"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      {importedWeekLabel ? "Reimportar / Trocar Semana" : "Selecionar Arquivo PDF (.pdf)"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Tipo de Reunião / Semana */}
             <div className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1.5">
               <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -328,20 +407,8 @@ export function Setup({
               >
                 <option value="Normal">Meio de Semana Normal (Apostila)</option>
                 <option value="Visita do SC (Semana)">Visita do SC: Meio de Semana (Discurso no lugar do livro)</option>
-                <option value="Visita do SC (Final de Semana)">Visita do SC: Fim de Semana (Discurso / Resumo / Discurso final)</option>
-                <option value="Fim de Semana Normal">Fim de Semana Normal (Discurso + Sentinela)</option>
-                <option value="Semana de Assembleia">Semana de Assembleia / Congresso (Sem Reunião)</option>
               </select>
             </div>
-
-            {settings.weekType === 'Semana de Assembleia' && (
-              <div className="p-4 bg-sky-500/10 border border-sky-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-3 text-xs text-sky-900 dark:text-sky-200">
-                <span className="font-bold uppercase text-[10px] bg-sky-600 text-white px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1.5">
-                  <CalendarX className="w-3.5 h-3.5" /> Sem Reunião
-                </span>
-                <span><strong>Semana de Assembleia ou Congresso:</strong> Não há reunião congregacional nesta semana para que toda a congregação possa assistir ao evento especial de circuito ou congresso regional.</span>
-              </div>
-            )}
 
             {settings.weekType === 'Visita do SC (Semana)' && (
               <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-300">
@@ -350,28 +417,17 @@ export function Setup({
               </div>
             )}
 
-            {settings.weekType === 'Visita do SC (Final de Semana)' && (
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-300">
-                <span className="font-bold uppercase text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-full shrink-0">Visita SC</span>
-                <span><strong>Fim de Semana:</strong> Estrutura composta por <strong>Discurso inicial (30 min)</strong>, <strong>Resumo de A Sentinela (30 min)</strong> e <strong>Discurso final de serviço (30 min)</strong>.</span>
-              </div>
-            )}
-
             {/* Duração e Visão Geral */}
             <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm">
                <div className="flex flex-col">
                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Início Previsto</span>
                  <span className="text-xl font-mono font-bold text-slate-900 dark:text-white">
-                   {settings.weekType === 'Semana de Assembleia' ? '—' : (settings.defaultTime || '—')}
+                   {settings.defaultTime || '—'}
                  </span>
                </div>
 
                <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 dark:bg-[#0F172A] rounded-xl border border-slate-200 dark:border-slate-800">
-                 {settings.weekType === 'Semana de Assembleia' ? (
-                   <span className="text-sky-600 dark:text-sky-400 font-bold text-xs flex items-center gap-1.5">
-                     <CalendarX className="w-4 h-4" /> Sem Reunião Congregacional
-                   </span>
-                 ) : is105Standard ? (
+                 {is105Standard ? (
                    <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center gap-1.5">
                      <CheckCircle2 className="w-4 h-4" /> 105 min (1h 45m)
                    </span>
@@ -385,9 +441,7 @@ export function Setup({
                <div className="flex flex-col text-right">
                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Duração Total</span>
                  <span className="text-xl font-mono font-bold text-slate-900 dark:text-white">
-                   {settings.weekType === 'Semana de Assembleia' 
-                     ? '0m' 
-                     : `${Math.floor(totalPlannedMinutes / 60)}h ${(totalPlannedMinutes % 60).toString().padStart(2, '0')}m`}
+                   {`${Math.floor(totalPlannedMinutes / 60)}h ${(totalPlannedMinutes % 60).toString().padStart(2, '0')}m`}
                  </span>
                </div>
             </div>
@@ -399,17 +453,17 @@ export function Setup({
                   <CalendarX className="w-7 h-7" />
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Sem Reunião Congregacional Esta Semana
+                  Nenhuma Parte Configurada
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-                  Esta semana está designada como <strong>Assembleia de Circuito</strong> ou <strong>Congresso Regional</strong>. As reuniões regulares do meio e fim de semana são canceladas para assistência ao evento.
+                  Não há partes configuradas para a reunião. Por favor, adicione as partes ou faça a importação da apostila.
                 </p>
                 <div className="pt-2">
                   <button
                     onClick={() => onUpdateSettings({ weekType: 'Normal' })}
                     className="text-xs text-[#295E9F] dark:text-[#4A6CA7] font-bold hover:underline cursor-pointer"
                   >
-                    Trocar para Reunião Normal
+                    Carregar Programação Padrão
                   </button>
                 </div>
               </div>
@@ -627,10 +681,10 @@ export function Setup({
       {/* Botão Primário Inteligente (Princípio 2: Altura ≥ 56px) */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-[#0F172A]/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 z-40">
         <div className="max-w-3xl mx-auto">
-          {state.parts.length === 0 || settings.weekType === 'Semana de Assembleia' ? (
+          {state.parts.length === 0 ? (
             <div className="w-full min-h-[56px] bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 font-bold tracking-wide text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2.5 px-4 text-center select-none">
               <CalendarX className="w-5 h-5 text-sky-500 shrink-0" />
-              <span>Semana de Assembleia / Congresso • Sem reunião para iniciar</span>
+              <span>Sem partes configuradas para iniciar</span>
             </div>
           ) : (
             <button 
