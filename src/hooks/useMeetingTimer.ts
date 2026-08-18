@@ -13,6 +13,7 @@ import {
   ActiveMeetingSession,
   TOTAL_PLANNED_MEETING_MINUTES
 } from '../types';
+import { safeStorage } from '../lib/storage';
 import {
   auth,
   fetchFirebaseSettings,
@@ -36,13 +37,13 @@ const STORAGE_ACTIVE_SESSION_KEY = 'jw_stage_active_session';
 export function useMeetingTimer() {
   // Garantir a exclusão completa de qualquer histórico local anterior que possa ter ficado no navegador
   useEffect(() => {
-    localStorage.removeItem('jw_stage_meetings_archive');
+    safeStorage.removeItem('jw_stage_meetings_archive');
   }, []);
   const [firebaseStatus, setFirebaseStatus] = useState<'synced' | 'syncing' | 'offline'>('syncing');
 
   // Settings
   const [settings, setSettings] = useState<CongregationSettings>(() => {
-    const saved = localStorage.getItem(STORAGE_SETTINGS_KEY);
+    const saved = safeStorage.getItem(STORAGE_SETTINGS_KEY);
     if (saved) {
       try { 
         const parsed = JSON.parse(saved);
@@ -78,7 +79,7 @@ export function useMeetingTimer() {
   });
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(settings));
+    safeStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(settings));
     // saveFirebaseSettings is now handled per-action to avoid infinite loops with realtime sync
   }, [settings]);
 
@@ -98,7 +99,7 @@ export function useMeetingTimer() {
         if (remoteSettings && isMounted) {
           if (remoteSettings.name || remoteSettings.brothers?.length) {
             setSettings(remoteSettings);
-            localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(remoteSettings));
+            safeStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(remoteSettings));
           }
         } else if (settings && isMounted) {
           await saveFirebaseSettings(settings);
@@ -125,7 +126,7 @@ export function useMeetingTimer() {
       if (!isMounted || !liveSettings) return;
       if (liveSettings.name || liveSettings.brothers?.length) {
         setSettings(liveSettings);
-        localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(liveSettings));
+        safeStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(liveSettings));
       }
     });
 
@@ -170,7 +171,7 @@ export function useMeetingTimer() {
   
   // Pending active session detection
   const [pendingSavedSession, setPendingSavedSession] = useState<ActiveMeetingSession | null>(() => {
-    const saved = localStorage.getItem(STORAGE_ACTIVE_SESSION_KEY);
+    const saved = safeStorage.getItem(STORAGE_ACTIVE_SESSION_KEY);
     if (saved) {
       try {
         const parsed: ActiveMeetingSession = JSON.parse(saved);
@@ -205,7 +206,7 @@ export function useMeetingTimer() {
       totalElapsedSeconds: state.totalElapsedSeconds,
       records: state.history
     };
-    localStorage.setItem(STORAGE_ACTIVE_SESSION_KEY, JSON.stringify(session));
+    safeStorage.setItem(STORAGE_ACTIVE_SESSION_KEY, JSON.stringify(session));
   }, [state, currentTimerSeconds, targetDurationSeconds, isTimerRunning, settings]);
 
   // Save whenever key state points change
@@ -236,7 +237,7 @@ export function useMeetingTimer() {
   };
 
   const discardSavedMeeting = () => {
-    localStorage.removeItem(STORAGE_ACTIVE_SESSION_KEY);
+    safeStorage.removeItem(STORAGE_ACTIVE_SESSION_KEY);
     setPendingSavedSession(null);
   };
 
@@ -756,7 +757,7 @@ export function useMeetingTimer() {
     };
 
     saveToArchive(completed);
-    localStorage.removeItem(STORAGE_ACTIVE_SESSION_KEY);
+    safeStorage.removeItem(STORAGE_ACTIVE_SESSION_KEY);
     setPendingSavedSession(null);
 
     setState(prev => ({
@@ -803,7 +804,7 @@ export function useMeetingTimer() {
       totalElapsedSeconds: state.totalElapsedSeconds,
       records: state.history
     };
-    localStorage.setItem(STORAGE_ACTIVE_SESSION_KEY, JSON.stringify(session));
+    safeStorage.setItem(STORAGE_ACTIVE_SESSION_KEY, JSON.stringify(session));
     setPendingSavedSession(session);
 
     setState(prev => ({
@@ -813,7 +814,7 @@ export function useMeetingTimer() {
   };
 
   const resetToSetup = () => {
-    localStorage.removeItem(STORAGE_ACTIVE_SESSION_KEY);
+    safeStorage.removeItem(STORAGE_ACTIVE_SESSION_KEY);
     setPendingSavedSession(null);
     setState({
       status: 'setup',

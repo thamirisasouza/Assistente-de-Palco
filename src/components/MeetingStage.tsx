@@ -1,7 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { MeetingState, MeetingPart, TOTAL_PLANNED_MEETING_MINUTES } from '../types';
 import { formatTime, cn, getBalanceColorClass, formatBalanceDisplay } from '../lib/utils';
 import { getPartSection, SECTIONS, groupPartsBySection } from '../lib/sectionColors';
+import { safeStorage } from '../lib/storage';
+import { 
+  requestScreenWakeLock, 
+  releaseScreenWakeLock, 
+  playAlertTone, 
+  safeVibrate, 
+  toggleFullscreen 
+} from '../lib/mobileCompat';
 import { 
   Play, 
   CheckCircle2, 
@@ -22,7 +30,10 @@ import {
   ArrowLeft,
   ArrowUpDown,
   ArrowRight,
-  ListOrdered
+  ListOrdered,
+  Volume2,
+  VolumeX,
+  Maximize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -61,6 +72,57 @@ export function MeetingStage({
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
   const [showPartsOrderModal, setShowPartsOrderModal] = useState(false);
   const [partToJump, setPartToJump] = useState<{ index: number; part: MeetingPart } | null>(null);
+  
+  // Preferência de alertas sonoros suaves (persistida com segurança)
+  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(() => {
+    return safeStorage.getItem('jw_stage_sound_alert') !== 'false';
+  });
+
+  const prevSecondsRef = useRef(currentTimerSeconds);
+
+  // Mantém a tela acesa (Wake Lock) durante toda a reunião no palco
+  useEffect(() => {
+    requestScreenWakeLock().catch(() => {});
+    return () => {
+      releaseScreenWakeLock().catch(() => {});
+    };
+  }, []);
+
+  // Alertas sonoros e táteis automáticos nos momentos críticos (60s e tempo esgotado)
+  useEffect(() => {
+    const prev = prevSecondsRef.current;
+    prevSecondsRef.current = currentTimerSeconds;
+
+    if (!isTimerRunning) return;
+
+    // Alerta de 1 minuto restante (cruzou de >60 para <=60)
+    if (prev > 60 && currentTimerSeconds <= 60 && currentTimerSeconds > 0) {
+      if (isSoundEnabled) {
+        playAlertTone('warning');
+      }
+      safeVibrate([180, 100, 180]);
+    }
+
+    // Alerta de Tempo Esgotado (cruzou de >0 para <=0)
+    if (prev > 0 && currentTimerSeconds <= 0) {
+      if (isSoundEnabled) {
+        playAlertTone('overtime');
+      }
+      safeVibrate([350]);
+    }
+  }, [currentTimerSeconds, isTimerRunning, isSoundEnabled]);
+
+  const toggleSound = () => {
+    setIsSoundEnabled(prev => {
+      const next = !prev;
+      safeStorage.setItem('jw_stage_sound_alert', String(next));
+      if (next) {
+        playAlertTone('bell');
+        safeVibrate(100);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -129,7 +191,7 @@ export function MeetingStage({
 
   return (
     <div className={cn(
-      "flex flex-col h-screen w-full font-sans overflow-hidden transition-colors duration-500",
+      "flex flex-col h-screen-safe min-h-screen-safe w-full font-sans overflow-hidden transition-colors duration-500",
       isAllPartsDone
         ? "bg-emerald-50/70 dark:bg-[#062017] text-slate-900 dark:text-slate-100 ring-8 ring-inset ring-emerald-500/50"
         : "bg-slate-50 dark:bg-[#0F172A] text-slate-900 dark:text-slate-100",
@@ -137,9 +199,9 @@ export function MeetingStage({
       isOvertime && "ring-4 ring-inset ring-red-500/50"
     )}>
       
-      {/* 1. Header Top Bar (Relógio, Andamento, Saldo, Botão Finalizar e Botão Fechar Tela) */}
+      {/* 1. Header Top Bar (Relógio, Andamento, Saldo, Som, Botão Finalizar e Botão Fechar Tela) */}
       <header className={cn(
-        "h-20 border-b flex items-center justify-between px-3 sm:px-6 md:px-8 shadow-sm shrink-0 z-30 transition-colors",
+        "h-20 border-b flex items-center justify-between px-3 sm:px-6 md:px-8 shadow-sm shrink-0 z-30 transition-colors pt-safe",
         isAllPartsDone
           ? "bg-emerald-100/60 dark:bg-[#0A2E22] border-emerald-500/30"
           : "bg-white dark:bg-[#1E293B] border-slate-200 dark:border-slate-800"
@@ -200,8 +262,8 @@ export function MeetingStage({
           </div>
         </div>
 
-        {/* Direita: Saldo de Tempo + Botão Ordem + Botão Finalizar Reunião + Botão Fechar Tela */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Direita: Saldo de Tempo + Botão Som + Botão Ordem + Botão Finalizar + Fechar */}
+        <div className="flex items-center gap-1.5 sm:gap-3">
           <div className="flex flex-col items-end mr-1">
             <span className="text-[9px] sm:text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">
               Saldo
@@ -214,10 +276,25 @@ export function MeetingStage({
             </span>
           </div>
 
+          {/* Botão de Som / Alerta Silencioso */}
+          <button
+            onClick={toggleSound}
+            className={cn(
+              "h-10 sm:h-11 w-10 sm:w-11 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95 shrink-0 border",
+              isSoundEnabled 
+                ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700" 
+                : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/20"
+            )}
+            title={isSoundEnabled ? "Alertas sonoros ativados (Clique para silenciar)" : "Silencioso (Clique para ativar alertas)"}
+            aria-label="Controle de Som"
+          >
+            {isSoundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+
           {/* Botão de Ordem das Partes / Adiantar */}
           <button 
             onClick={() => setShowPartsOrderModal(true)} 
-            className="h-10 sm:h-11 px-2.5 sm:px-3.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:border-amber-500/50 rounded-xl flex items-center gap-1.5 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+            className="h-10 sm:h-11 px-2 sm:px-3.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:border-amber-500/50 rounded-xl flex items-center gap-1.5 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
             title="Ordem das Partes / Adiantar se alguém atrasou"
           >
             <ArrowUpDown className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -731,16 +808,16 @@ export function MeetingStage({
         </aside>
       </main>
 
-      {/* 5. Footer: Botão Primário Inteligente (Altura ≥ 56px, Maior Elemento da Tela) */}
-      <footer className="h-24 md:h-28 bg-white dark:bg-[#1E293B] border-t border-slate-200 dark:border-slate-800 p-4 flex gap-4 shrink-0 z-30 shadow-lg">
+      {/* 5. Footer: Botão Primário Inteligente (Altura ≥ 56px, Maior Elemento da Tela, Safe-Area Resiliente) */}
+      <footer className="min-h-24 md:min-h-28 bg-white dark:bg-[#1E293B] border-t border-slate-200 dark:border-slate-800 p-3 sm:p-4 pb-safe flex gap-2 sm:gap-4 shrink-0 z-30 shadow-lg">
         {isAllPartsDone ? (
           /* Botão Final de Encerramento */
           <button 
             onClick={() => setShowEndConfirmModal(true)}
-            className="flex-1 min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
+            className="flex-1 min-h-[52px] sm:min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
           >
-            <CheckCheck className="w-7 h-7" />
-            <span className="text-lg sm:text-2xl font-black tracking-wider uppercase truncate">
+            <CheckCheck className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" />
+            <span className="text-base sm:text-2xl font-black tracking-wider uppercase truncate">
               ENCERRAR REUNIÃO E GRAVAR HISTÓRICO
             </span>
           </button>
@@ -748,10 +825,10 @@ export function MeetingStage({
           /* Botão Iniciar Cronômetro com Efeito Piscante */
           <button 
             onClick={onToggleTimer}
-            className="flex-1 min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-[#295E9F]/30 active:scale-[0.99] cursor-pointer animate-pulse-attention"
+            className="flex-1 min-h-[52px] sm:min-h-[56px] bg-[#295E9F] hover:bg-[#3474C2] text-white transition-all rounded-2xl flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-[#295E9F]/30 active:scale-[0.99] cursor-pointer animate-pulse-attention"
           >
-            <Play className="w-7 h-7 fill-current animate-pulse" />
-            <span className="text-lg sm:text-2xl font-black tracking-wider uppercase truncate">
+            <Play className="w-6 h-6 sm:w-7 sm:h-7 fill-current animate-pulse shrink-0" />
+            <span className="text-base sm:text-2xl font-black tracking-wider uppercase truncate">
               INICIAR {state.isCounselPhase ? "CONSELHO" : "PARTE"}
             </span>
           </button>
@@ -760,19 +837,19 @@ export function MeetingStage({
           <>
             <button 
               onClick={onNextPhase}
-              className="flex-[2] min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
+              className="flex-[2] min-h-[52px] sm:min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
             >
-              <CheckCircle2 className="w-7 h-7 shrink-0" />
-              <span className="text-lg sm:text-2xl font-black tracking-wider uppercase truncate">
+              <CheckCircle2 className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" />
+              <span className="text-sm sm:text-2xl font-black tracking-wider uppercase truncate">
                 CONCLUIR CONSELHO
               </span>
             </button>
             <button 
               onClick={onSkipCounsel}
-              className="flex-1 min-h-[56px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-all rounded-2xl flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer"
+              className="flex-1 min-h-[52px] sm:min-h-[56px] px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-all rounded-2xl flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.99] cursor-pointer"
             >
-              <SkipForward className="w-5 h-5 shrink-0" />
-              <span className="text-sm md:text-base font-bold uppercase tracking-wider truncate">
+              <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+              <span className="text-xs sm:text-base font-bold uppercase tracking-wider truncate">
                 Pular Elogio
               </span>
             </button>
@@ -781,10 +858,10 @@ export function MeetingStage({
           /* Botão Concluir Parte */
           <button 
             onClick={onNextPhase}
-            className="flex-1 min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
+            className="flex-1 min-h-[52px] sm:min-h-[56px] bg-emerald-600 hover:bg-emerald-500 text-white transition-all rounded-2xl flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-emerald-600/30 active:scale-[0.99] cursor-pointer"
           >
-            <CheckCircle2 className="w-7 h-7" />
-            <span className="text-lg sm:text-2xl font-black tracking-wider uppercase truncate">
+            <CheckCircle2 className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" />
+            <span className="text-base sm:text-2xl font-black tracking-wider uppercase truncate">
               CONCLUIR PARTE
             </span>
           </button>

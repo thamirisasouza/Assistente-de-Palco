@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import { CompletedMeeting, PartRecord } from '../types';
 import { formatTime, formatBalanceDisplay } from './utils';
 import { MonthPdfParseResult, ParsedWeekSchedule } from './apostilaParser';
+import { safeStorage } from './storage';
 
 /**
  * Formata segundos em minutos e segundos: "09:45" ou "9:45"
@@ -70,7 +71,7 @@ export function exportMeetingToPdf(meeting: CompletedMeeting) {
   // Tenta carregar o mês completo importado se existir
   let monthSchedule: MonthPdfParseResult | null = null;
   try {
-    const saved = localStorage.getItem('s38t_imported_month_schedule');
+    const saved = safeStorage.getItem('s38t_imported_month_schedule');
     if (saved) {
       monthSchedule = JSON.parse(saved);
     }

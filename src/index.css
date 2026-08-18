@@ -2,6 +2,58 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ============================================================
+   RESILIÊNCIA E COMPATIBILIDADE PARA SMARTPHONES & WEBVIEWS
+   ============================================================ */
+
+:root {
+  /* Safe area insets para entalhes/notches de iPhone e barras de navegação Android */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+/* Otimizações globais de toque e rolagem móvel */
+html, body {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+}
+
+/* Previne zoom automático indesejado no iOS Safari ao focar campos */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Utilitários de Safe Area com fallback */
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+.pt-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+}
+
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.min-h-screen-safe {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Rolagem com aceleração de hardware em WebKit antigo */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+}
+
 @keyframes pulse-attention {
   0%, 100% {
     transform: scale(1);
@@ -16,4 +68,5 @@
 .animate-pulse-attention {
   animation: pulse-attention 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
 

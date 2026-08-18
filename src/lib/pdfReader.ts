@@ -13,8 +13,24 @@ export interface ExtractedPdfText {
 /**
  * Lê o arquivo PDF enviado pelo usuário e extrai todo o conteúdo de texto
  */
+async function getFileArrayBuffer(file: File): Promise<ArrayBuffer> {
+  if (typeof file.arrayBuffer === 'function') {
+    try {
+      return await file.arrayBuffer();
+    } catch (e) {
+      // Fallback para FileReader se falhar
+    }
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error || new Error('Erro ao ler arquivo PDF'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 export async function readPdfFile(file: File): Promise<ExtractedPdfText> {
-  const arrayBuffer = await file.arrayBuffer();
+  const arrayBuffer = await getFileArrayBuffer(file);
   const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
   const pdfDoc = await loadingTask.promise;
   
