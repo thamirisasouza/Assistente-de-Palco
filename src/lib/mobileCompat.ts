@@ -100,9 +100,18 @@ export function unlockAudioContext(): void {
   if (isAudioUnlocked) return;
   const ctx = getAudioContext();
   if (ctx && ctx.state === 'suspended') {
-    ctx.resume().then(() => {
-      isAudioUnlocked = true;
-    }).catch(() => {});
+    try {
+      const p = ctx.resume();
+      if (p && typeof p.then === 'function') {
+        p.then(() => {
+          isAudioUnlocked = true;
+        }).catch(() => {});
+      } else {
+        isAudioUnlocked = true;
+      }
+    } catch (e) {
+      // old browsers might throw on resume
+    }
   } else if (ctx && ctx.state === 'running') {
     isAudioUnlocked = true;
   }
@@ -211,7 +220,13 @@ export function toggleFullscreen(element: HTMLElement = document.documentElement
                 (element as any).mozRequestFullScreen || 
                 (element as any).msRequestFullscreen;
     if (req) {
-      return req.call(element).catch(() => {});
+      try {
+        const p = req.call(element);
+        if (p && typeof p.catch === 'function') {
+          return p.catch(() => {});
+        }
+      } catch (e) {}
+      return Promise.resolve();
     }
   } else {
     const exit = doc.exitFullscreen || 
@@ -219,7 +234,13 @@ export function toggleFullscreen(element: HTMLElement = document.documentElement
                  doc.mozCancelFullScreen || 
                  doc.msExitFullscreen;
     if (exit) {
-      return exit.call(doc).catch(() => {});
+      try {
+        const p = exit.call(doc);
+        if (p && typeof p.catch === 'function') {
+          return p.catch(() => {});
+        }
+      } catch (e) {}
+      return Promise.resolve();
     }
   }
   return Promise.resolve();

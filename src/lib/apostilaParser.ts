@@ -324,7 +324,12 @@ export function parseMonthlyPdfText(fullText: string): MonthPdfParseResult {
       const closeMatches = clSection.match(/Cântico\s+(\d+[^:\n]*:[^\n\r]+?)(?:\s+Oração\s+([^\n\r]+)|$)/i) ||
                            clSection.match(/Cântico\s+(\d+)\s*:\s*([^\n]+)/i);
       
-      const allCanticos = Array.from(clSection.matchAll(/Cântico\s+(\d+[^:\n]*:[^\n\r]+)/gi));
+      const canticoRegex = /Cântico\s+(\d+[^:\n]*:[^\n\r]+)/gi;
+      const allCanticos: string[][] = [];
+      let m;
+      while ((m = canticoRegex.exec(clSection)) !== null) {
+        allCanticos.push(m);
+      }
       if (allCanticos.length > 1) {
         const lastCanticoLine = allCanticos[allCanticos.length - 1][0];
         const prayInLast = lastCanticoLine.match(/Oração\s+(.*)/i);
