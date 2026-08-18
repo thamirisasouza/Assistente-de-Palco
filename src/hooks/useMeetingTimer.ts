@@ -540,6 +540,24 @@ export function useMeetingTimer() {
     setCurrentTimerSeconds(prev => prev + secondsDelta);
   };
 
+  // Helper interno para encontrar o próximo índice não concluído no fluxo
+  const getNextUncompletedIndex = (parts: MeetingPart[], history: PartRecord[], currentIndex: number): number => {
+    // 1. Procura primeiro para frente (currentIndex + 1 até o final)
+    for (let i = currentIndex + 1; i < parts.length; i++) {
+      if (!history.some(h => h.id === parts[i].id)) {
+        return i;
+      }
+    }
+    // 2. Se não houver à frente, procura do início (0 até currentIndex - 1) para partes pendentes
+    for (let i = 0; i < currentIndex; i++) {
+      if (!history.some(h => h.id === parts[i].id)) {
+        return i;
+      }
+    }
+    // 3. Todas as partes foram concluídas
+    return parts.length;
+  };
+
   // Conclude current phase (part or counsel)
   const nextPhase = () => {
     setIsTimerRunning(false);
@@ -549,12 +567,12 @@ export function useMeetingTimer() {
       const newState = { ...prev };
       
       // Calculate actual time spent on this part
-      const actualTimeSpent = targetDurationSeconds - currentTimerSeconds;
+      const actualTimeSpent = Math.max(0, targetDurationSeconds - currentTimerSeconds);
       
       if (prev.isCounselPhase) {
-        // Finishing counsel phase
+        // Finishing counsel phase -> avança para a próxima parte não concluída
         newState.isCounselPhase = false;
-        newState.currentPartIndex++;
+        newState.currentPartIndex = getNextUncompletedIndex(newState.parts, newState.history, newState.currentPartIndex);
       } else {
         // Finishing a main meeting part
         const overTime = actualTimeSpent - (currentPart.plannedTime * 60);
@@ -576,8 +594,8 @@ export function useMeetingTimer() {
           }
         }
         
-        // Add to history records
-        newState.history.push({
+        // Grava ou atualiza no histórico (sem duplicar)
+        const record: PartRecord = {
           id: currentPart.id,
           partNumber: currentPart.partNumber,
           title: currentPart.title,
@@ -589,23 +607,31 @@ export function useMeetingTimer() {
           status: overTime > 0 ? 'Excedido' : (actualTimeSpent < (currentPart.plannedTime * 60) / 2 ? 'Terminou antes do tempo' : 'No tempo correto'),
           hasCounsel: currentPart.hasCounsel,
           counselRecorded: currentPart.hasCounsel
-        });
+        };
+
+        const existingIndex = newState.history.findIndex(h => h.id === currentPart.id);
+        if (existingIndex >= 0) {
+          newState.history[existingIndex] = record;
+        } else {
+          newState.history.push(record);
+        }
 
         if (currentPart.hasCounsel) {
           newState.isCounselPhase = true;
         } else {
-          newState.currentPartIndex++;
+          newState.currentPartIndex = getNextUncompletedIndex(newState.parts, newState.history, newState.currentPartIndex);
         }
       }
 
-      // If finished all parts, we remain at last index ready for "Encerrar Reunião"
-      if (newState.currentPartIndex >= newState.parts.length) {
-        // All parts done, prompt "Encerrar Reunião"
-        // Target duration reset to 0
+      // Se todas as partes estiverem concluídas
+      const allDone = newState.parts.every(p => newState.history.some(h => h.id === p.id)) || newState.currentPartIndex >= newState.parts.length;
+
+      if (allDone) {
+        newState.currentPartIndex = newState.parts.length;
         setTargetDurationSeconds(0);
         setCurrentTimerSeconds(0);
       } else {
-        // Next timer target
+        // Próximo alvo do cronômetro
         if (newState.isCounselPhase) {
           setTargetDurationSeconds(60);
           setCurrentTimerSeconds(60);
@@ -625,9 +651,12 @@ export function useMeetingTimer() {
     setState(prev => {
       const newState = { ...prev };
       newState.isCounselPhase = false;
-      newState.currentPartIndex++;
+      newState.currentPartIndex = getNextUncompletedIndex(newState.parts, newState.history, newState.currentPartIndex);
       
-      if (newState.currentPartIndex >= newState.parts.length) {
+      const allDone = newState.parts.every(p => newState.history.some(h => h.id === p.id)) || newState.currentPartIndex >= newState.parts.length;
+
+      if (allDone) {
+        newState.currentPartIndex = newState.parts.length;
         setTargetDurationSeconds(0);
         setCurrentTimerSeconds(0);
       } else {
@@ -635,6 +664,51 @@ export function useMeetingTimer() {
         setTargetDurationSeconds(nextTarget);
         setCurrentTimerSeconds(nextTarget);
       }
+      return newState;
+    });
+  };
+
+  // Pular ou adiantar para uma parte específica (ex: irmão atrasado)
+  const jumpToPart = (targetIndex: number) => {
+    if (targetIndex < 0 || targetIndex >= state.parts.length || targetIndex === state.currentPartIndex) return;
+
+    setIsTimerRunning(false);
+    setState(prev => {
+      const currentPart = prev.parts[prev.currentPartIndex];
+      const newState = { ...prev };
+      
+      // Se houve tempo decorrido na parte atual (> 3 segundos), grava o tempo consumido
+      const actualTimeSpent = Math.max(0, targetDurationSeconds - currentTimerSeconds);
+      if (actualTimeSpent > 3) {
+        const existingHistoryIndex = newState.history.findIndex(h => h.id === currentPart.id);
+        const overTime = actualTimeSpent - (currentPart.plannedTime * 60);
+        const record: PartRecord = {
+          id: currentPart.id,
+          partNumber: currentPart.partNumber,
+          title: currentPart.title,
+          speaker: currentPart.speaker,
+          assistant: currentPart.assistant,
+          hideSpeaker: currentPart.hideSpeaker,
+          plannedTime: currentPart.plannedTime,
+          actualTime: Math.max(0, Math.round(actualTimeSpent)),
+          status: overTime > 0 ? 'Excedido' : (actualTimeSpent < (currentPart.plannedTime * 60) / 2 ? 'Terminou antes do tempo' : 'No tempo correto'),
+          hasCounsel: currentPart.hasCounsel
+        };
+        
+        if (existingHistoryIndex >= 0) {
+          newState.history[existingHistoryIndex] = record;
+        } else {
+          newState.history.push(record);
+        }
+      }
+
+      newState.currentPartIndex = targetIndex;
+      newState.isCounselPhase = false;
+
+      const nextTarget = (newState.parts[targetIndex]?.plannedTime || 5) * 60;
+      setTargetDurationSeconds(nextTarget);
+      setCurrentTimerSeconds(nextTarget);
+
       return newState;
     });
   };
@@ -775,6 +849,7 @@ export function useMeetingTimer() {
     adjustTimer,
     nextPhase,
     skipCounsel,
+    jumpToPart,
     concludeMeeting,
     pauseAndReturnToSetup,
     resetToSetup,

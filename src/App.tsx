@@ -196,6 +196,7 @@ export default function App() {
           onAdjustTimer={timerContext.adjustTimer}
           onNextPhase={timerContext.nextPhase}
           onSkipCounsel={timerContext.skipCounsel}
+          onJumpToPart={timerContext.jumpToPart}
           onConcludeMeeting={timerContext.concludeMeeting}
           onPauseAndExit={timerContext.pauseAndReturnToSetup}
           onEmergencyReset={timerContext.resetToSetup}

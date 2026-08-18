@@ -1,28 +1,15 @@
 import React, { useState } from 'react';
-import { CompletedMeeting, PartRecord, TOTAL_PLANNED_MEETING_MINUTES, Brother } from '../types';
-import { formatTime, formatTimeHours, getBalanceColorClass, formatBalanceDisplay, cn } from '../lib/utils';
+import { CompletedMeeting, Brother } from '../types';
+import { formatTime, getBalanceColorClass, formatBalanceDisplay, cn } from '../lib/utils';
 import { exportMeetingToPdf } from '../lib/pdfExporter';
-import { AnalyticsCharts } from './AnalyticsCharts';
 import { 
   CheckCircle2, 
-  AlertTriangle, 
-  Calendar, 
   User, 
-  Building2, 
-  Share2, 
   Copy, 
   Check, 
-  RefreshCw, 
-  BarChart3, 
-  Clock, 
   ArrowLeft, 
-  Trash2, 
-  FileText,
-  TrendingDown,
-  TrendingUp,
-  Award,
   FileDown,
-  Download
+  FileText
 } from 'lucide-react';
 
 interface HistoryProps {
@@ -37,14 +24,10 @@ interface HistoryProps {
 export function History({ 
   meeting, 
   archivedMeetings, 
-  knownBrothers = [],
   onNewMeeting, 
-  onSelectMeeting, 
-  onDeleteMeeting,
 }: HistoryProps) {
   const [copied, setCopied] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [activeTab, setActiveTab] = useState<'resumo' | 'historico' | 'graficos'>('resumo');
 
   // Selected meeting to display, fallback to first in history
   const activeMeeting = meeting || archivedMeetings[0];
@@ -168,7 +151,7 @@ export function History({
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              Histórico & Relatório da Reunião
+              Resumo da Reunião
             </h1>
             <p className="text-sm text-emerald-100 flex items-center gap-2 flex-wrap">
               <span>{activeMeeting.data_formatada} • {activeMeeting.congregacao}</span>
@@ -180,266 +163,129 @@ export function History({
               )}
             </p>
           </div>
-
-          {/* Tab buttons */}
-          <div className="flex bg-white dark:bg-[#1E293B] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shrink-0">
-            <button
-              onClick={() => setActiveTab('resumo')}
-              className={cn(
-                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                activeTab === 'resumo' 
-                  ? "bg-emerald-600 text-white shadow-sm" 
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              )}
-            >
-              <FileText className="w-4 h-4" /> Resumo
-            </button>
-            <button
-              onClick={() => setActiveTab('historico')}
-              className={cn(
-                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                activeTab === 'historico' 
-                  ? "bg-emerald-600 text-white shadow-sm" 
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              )}
-            >
-              <Calendar className="w-4 h-4" /> Histórico ({archivedMeetings.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('graficos')}
-              className={cn(
-                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                activeTab === 'graficos' 
-                  ? "bg-emerald-600 text-white shadow-sm" 
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              )}
-            >
-              <BarChart3 className="w-4 h-4" /> Gráficos
-            </button>
-          </div>
         </header>
 
-        {/* Metadados da Reunião (visíveis somente na aba resumo) */}
-        {activeTab === 'resumo' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Presidente</span>
-              <p className="text-base font-bold text-slate-800 dark:text-slate-100 truncate mt-0.5">
-                {activeMeeting.presidente}
-              </p>
-            </div>
-            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Duração Real</span>
-              <p className="text-xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-0.5">
-                {activeMeeting.duracao_real_minutos} min <span className="text-xs text-slate-400 font-normal">/ {activeMeeting.duracao_planejada_minutos}m</span>
-              </p>
-            </div>
-            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Saldo Final</span>
-              <p className={cn("text-xl font-bold font-mono mt-0.5", balanceColors.text)}>
-                {formatBalanceDisplay(activeMeeting.saldo_final_segundos)}
-              </p>
-            </div>
-            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Partes no Tempo Correto</span>
-              <p className="text-xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-0.5">
-                {partsOnTime} <span className="text-xs text-slate-400 font-normal">de {activeMeeting.partes.length}</span>
-              </p>
-            </div>
+        {/* 4 Cards em Grid de 2x2 */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Card 1: Presidente */}
+          <div className="bg-white dark:bg-[#1E293B] p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Presidente</span>
+            <p className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100 truncate mt-1">
+              {activeMeeting.presidente || "Não informado"}
+            </p>
           </div>
-        )}
 
-        {/* TAB 1: RESUMO DETALHADO */}
-        {activeTab === 'resumo' && (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="flex flex-wrap gap-2 justify-between items-center bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <div>
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">Registro Detalhado por Parte</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Tempos reais registrados para consulta do Superintendente.</p>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handleExportPdf(activeMeeting)}
-                  disabled={downloadingPdf}
-                  className="min-h-[44px] px-4 bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
-                >
-                  <FileDown className="w-4 h-4" />
-                  {downloadingPdf ? "Gerando PDF..." : "Exportar PDF (Modelo Escala)"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyReport}
-                  className="min-h-[44px] px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
-                >
-                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                  {copied ? "Copiado!" : "Copiar WhatsApp"}
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
-              {activeMeeting.partes.map((p, index) => {
-                const diffSeconds = p.actualTime - (p.plannedTime * 60);
-                const isExceeded = p.status === 'Excedido' || diffSeconds > 0;
-
-                return (
-                  <div key={index} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {p.partNumber != null ? (
-                          <span className="px-2 py-0.5 rounded-md bg-[#295E9F]/10 dark:bg-[#295E9F]/25 text-[#295E9F] dark:text-[#688EC9] font-mono text-xs flex items-center justify-center font-black border border-[#295E9F]/30">
-                            Nº {p.partNumber}
-                          </span>
-                        ) : (
-                          <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 font-mono text-xs flex items-center justify-center font-bold">
-                            •
-                          </span>
-                        )}
-                        <h4 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
-                          {p.title}
-                        </h4>
-                      </div>
-                      {!p.hideSpeaker && (
-                        <p className="text-xs text-slate-500 dark:text-slate-400 pl-8">
-                          {p.speaker || "Sem orador designado"}
-                          {p.assistant && <span className="text-slate-400"> (c/ {p.assistant})</span>}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between sm:justify-end gap-4 pl-8 sm:pl-0">
-                      <div className="flex flex-col sm:items-end font-mono">
-                        <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                          {formatTime(p.actualTime)}
-                          <span className="text-xs text-slate-400 font-normal"> / {p.plannedTime}m</span>
-                        </div>
-                        <span className={cn(
-                          "text-[10px] font-bold",
-                          isExceeded ? "text-red-500" : "text-emerald-500"
-                        )}>
-                          {diffSeconds > 0 ? `+${formatTime(diffSeconds)}` : diffSeconds < 0 ? `-${formatTime(Math.abs(diffSeconds))}` : "00:00"}
-                        </span>
-                      </div>
-
-                      <span className={cn(
-                        "px-3 py-1 text-xs uppercase tracking-wider rounded-xl shrink-0 border flex items-center gap-1.5 font-mono font-bold",
-                        isExceeded 
-                          ? "bg-red-500 text-white border-red-600 shadow-sm font-black" 
-                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                      )}>
-                        {isExceeded ? `${formatTime(p.actualTime)} (Excedido)` : "No tempo correto"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          {/* Card 2: Duração Real */}
+          <div className="bg-white dark:bg-[#1E293B] p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Duração Real</span>
+            <p className="text-lg sm:text-xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-1">
+              {activeMeeting.duracao_real_minutos} min <span className="text-[11px] text-slate-400 font-normal">/ {activeMeeting.duracao_planejada_minutos}m</span>
+            </p>
           </div>
-        )}
 
-        {/* TAB 2: HISTÓRICO DE REUNIÕES */}
-        {activeTab === 'historico' && (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap gap-2 justify-between items-center">
-              <div>
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">Histórico de Reuniões Gravadas</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Reuniões concluídas e registradas. Baixe o PDF oficial com minutos reais a qualquer momento.</p>
-              </div>
+          {/* Card 3: Saldo Final */}
+          <div className="bg-white dark:bg-[#1E293B] p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Saldo Final</span>
+            <p className={cn("text-lg sm:text-xl font-bold font-mono mt-1", balanceColors.text)}>
+              {formatBalanceDisplay(activeMeeting.saldo_final_segundos)}
+            </p>
+          </div>
+
+          {/* Card 4: Partes no Horário */}
+          <div className="bg-white dark:bg-[#1E293B] p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Partes no Horário</span>
+            <p className="text-lg sm:text-xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-1">
+              {partsOnTime} <span className="text-[11px] text-slate-400 font-normal">de {activeMeeting.partes.length}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* RESUMO DETALHADO POR PARTE */}
+        <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="flex flex-wrap gap-2 justify-between items-center bg-white dark:bg-[#1E293B] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div>
+              <h3 className="font-bold text-slate-900 dark:text-white text-base">Registro Detalhado por Parte</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Tempos reais registrados para consulta do Superintendente.</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => handleExportPdf(activeMeeting)}
                 disabled={downloadingPdf}
-                className="min-h-[40px] px-4 bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                className="min-h-[42px] px-4 bg-[#295E9F] hover:bg-[#3474C2] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
               >
                 <FileDown className="w-4 h-4" />
-                {downloadingPdf ? "Gerando PDF..." : `Baixar PDF (${activeMeeting.data_formatada})`}
+                {downloadingPdf ? "Gerando PDF..." : "Exportar PDF (Modelo Escala)"}
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyReport}
+                className="min-h-[42px] px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                {copied ? "Copiado!" : "Copiar WhatsApp"}
               </button>
             </div>
-
-            <div className="space-y-3">
-              {archivedMeetings.map((m) => {
-                const isSelected = m.id === activeMeeting.id;
-                const mBalanceColors = getBalanceColorClass(m.saldo_final_segundos);
-
-                return (
-                  <div 
-                    key={m.id}
-                    className={cn(
-                      "bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm",
-                      isSelected ? "border-[#295E9F] dark:border-[#4A6CA7] ring-2 ring-[#295E9F]/20" : "border-slate-200 dark:border-slate-800 hover:border-slate-300"
-                    )}
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-mono font-bold">
-                          {m.tipo_semana}
-                        </span>
-                        <h4 className="font-bold text-slate-900 dark:text-white text-base">
-                          {m.data_formatada}
-                        </h4>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap text-xs text-slate-500 dark:text-slate-400">
-                        <span>{m.congregacao}</span>
-                        {(m.salvo_por_email || m.user_email) && (
-                          <>
-                            <span>•</span>
-                            <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium">
-                              <User className="w-3.5 h-3.5 text-[#295E9F] dark:text-[#4A6CA7]" />
-                              Salvo por: <strong className="text-slate-700 dark:text-slate-200">{m.salvo_por_email || m.user_email}</strong>
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between sm:justify-end gap-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleExportPdf(m)}
-                          className="min-h-[40px] px-3 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5"
-                          title="Exportar PDF no formato da escala mensal com minutos reais"
-                        >
-                          <FileDown className="w-3.5 h-3.5" />
-                          PDF
-                        </button>
-                        <button
-                          onClick={() => {
-                            onSelectMeeting(m);
-                            setActiveTab('resumo');
-                          }}
-                          className="min-h-[40px] px-3.5 bg-slate-100 dark:bg-slate-800 hover:bg-[#295E9F] hover:text-white text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors"
-                        >
-                          Ver Resumo
-                        </button>
-                        <button
-                          onClick={() => onDeleteMeeting(m.id)}
-                          className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl flex items-center justify-center transition-colors"
-                          title="Excluir do Histórico"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </div>
-        )}
 
-        {/* TAB 3: GRÁFICOS & PADRÕES DE PONTUALIDADE */}
-        {activeTab === 'graficos' && (
-          <AnalyticsCharts
-            archivedMeetings={archivedMeetings}
-            knownBrothers={knownBrothers}
-            onViewMeeting={(m) => {
-              onSelectMeeting(m);
-              setActiveTab('resumo');
-            }}
-          />
-        )}
+          <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+            {activeMeeting.partes.map((p, index) => {
+              const diffSeconds = p.actualTime - (p.plannedTime * 60);
+              const isExceeded = p.status === 'Excedido' || diffSeconds > 0;
+
+              return (
+                <div key={index} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {p.partNumber != null ? (
+                        <span className="px-2 py-0.5 rounded-md bg-[#295E9F]/10 dark:bg-[#295E9F]/25 text-[#295E9F] dark:text-[#688EC9] font-mono text-xs flex items-center justify-center font-black border border-[#295E9F]/30">
+                          Nº {p.partNumber}
+                        </span>
+                      ) : (
+                        <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 font-mono text-xs flex items-center justify-center font-bold">
+                          •
+                        </span>
+                      )}
+                      <h4 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
+                        {p.title}
+                      </h4>
+                    </div>
+                    {!p.hideSpeaker && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 pl-8">
+                        {p.speaker || "Sem orador designado"}
+                        {p.assistant && <span className="text-slate-400"> (c/ {p.assistant})</span>}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-4 pl-8 sm:pl-0">
+                    <div className="flex flex-col sm:items-end font-mono">
+                      <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                        {formatTime(p.actualTime)}
+                        <span className="text-xs text-slate-400 font-normal"> / {p.plannedTime}m</span>
+                      </div>
+                      <span className={cn(
+                        "text-[10px] font-bold",
+                        isExceeded ? "text-red-500" : "text-emerald-500"
+                      )}>
+                        {diffSeconds > 0 ? `+${formatTime(diffSeconds)}` : diffSeconds < 0 ? `-${formatTime(Math.abs(diffSeconds))}` : "00:00"}
+                      </span>
+                    </div>
+
+                    <span className={cn(
+                      "px-3 py-1 text-xs uppercase tracking-wider rounded-xl shrink-0 border flex items-center gap-1.5 font-mono font-bold",
+                      isExceeded 
+                        ? "bg-red-500 text-white border-red-600 shadow-sm font-black" 
+                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                    )}>
+                      {isExceeded ? `${formatTime(p.actualTime)} (Excedido)` : "No tempo correto"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Fixed Action Footer */}
