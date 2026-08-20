@@ -33,7 +33,8 @@ import {
   ListOrdered,
   Volume2,
   VolumeX,
-  Maximize2
+  Maximize2,
+  Lightbulb
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -183,6 +184,11 @@ export function MeetingStage({
 
   // Cores padronizadas de saldo
   const balanceColors = getBalanceColorClass(state.timeBalance);
+
+  // Cálculo de sugestão caso a reunião esteja atrasada (sem alterar os minutos reais do app)
+  const delayMinutes = !isAllPartsDone && state.timeBalance >= 60 ? Math.floor(state.timeBalance / 60) : 0;
+  const currentPlannedMins = currentPart?.plannedTime || 5;
+  const suggestedMinutes = Math.max(1, currentPlannedMins - delayMinutes);
 
   // Cálculo SVG do Anel de Progresso
   const radius = 24;
@@ -659,6 +665,16 @@ export function MeetingStage({
                       )}
                     </p>
                   )}
+
+                  {/* Sugestão Visual de Ajuste em caso de Atraso */}
+                  {!isAllPartsDone && !state.isCounselPhase && delayMinutes > 0 && (
+                    <div className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs sm:text-sm font-medium bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-500/30 max-w-xl mx-auto shadow-xs text-left sm:text-center animate-in fade-in zoom-in-95 duration-200">
+                      <Lightbulb className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>
+                        Como a reunião está atrasada <strong>{delayMinutes} {delayMinutes === 1 ? 'minuto' : 'minutos'}</strong>, seria interessante fazer essa parte em <strong>{suggestedMinutes} {suggestedMinutes === 1 ? 'minuto' : 'minutos'}</strong>.
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Mostrador Numérico Extra-Bold */}
@@ -743,6 +759,16 @@ export function MeetingStage({
                   </div>
                 </div>
               </div>
+
+              {!state.isCounselPhase && delayMinutes > 0 && (
+                <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2 shadow-xs">
+                  <Lightbulb className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block mb-0.5">Sugestão de Ajuste:</span>
+                    Como a reunião está atrasada <strong>{delayMinutes} {delayMinutes === 1 ? 'min' : 'minutos'}</strong>, seria interessante fazer essa parte em <strong>{suggestedMinutes} min</strong>.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Próxima Transição Inteligente */}
