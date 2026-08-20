@@ -81,44 +81,75 @@ export function History({
 
   // Copy formatted report for WhatsApp
   const handleCopyReport = () => {
+    // Helper para converter saldo em termos amigáveis da reunião
+    const formatBalanceText = (totalSec: number) => {
+      if (Math.abs(totalSec) < 5) return 'No tempo exato';
+      const absSec = Math.abs(totalSec);
+      const mins = Math.floor(absSec / 60);
+      const secs = absSec % 60;
+      let timeStr = '';
+      if (mins > 0) timeStr += `${mins} min `;
+      if (secs > 0 || mins === 0) timeStr += `${secs} seg`;
+      timeStr = timeStr.trim();
+
+      return totalSec > 0 ? `Atrasada em ${timeStr}` : `Adiantada em ${timeStr}`;
+    };
+
+    const formatPartStatus = (actualSec: number, plannedMins: number) => {
+      const plannedSec = plannedMins * 60;
+      const diffSec = actualSec - plannedSec;
+
+      if (diffSec > 0) {
+        const mins = Math.floor(diffSec / 60);
+        const secs = diffSec % 60;
+        let diffStr = '';
+        if (mins > 0) diffStr += `${mins} min `;
+        if (secs > 0 || mins === 0) diffStr += `${secs} seg`;
+        return `⚠️ Passou ${diffStr.trim()}`;
+      } else if (diffSec < -15) {
+        const absSec = Math.abs(diffSec);
+        const mins = Math.floor(absSec / 60);
+        const secs = absSec % 60;
+        let diffStr = '';
+        if (mins > 0) diffStr += `${mins} min `;
+        if (secs > 0 || mins === 0) diffStr += `${secs} seg`;
+        return `✅ Sobrou ${diffStr.trim()}`;
+      } else {
+        return `✅ No tempo`;
+      }
+    };
+
     const lines = [
-      `📊 *RELATÓRIO DE REUNIÃO*`,
+      `📋 *RESUMO DA REUNIÃO*`,
       `📅 *Data:* ${activeMeeting.data_formatada}`,
       `🏛️ *Congregação:* ${activeMeeting.congregacao}`,
       `👤 *Presidente:* ${activeMeeting.presidente}`,
-      ...(activeMeeting.salvo_por_email || activeMeeting.user_email ? [`📧 *Salvo por:* ${activeMeeting.salvo_por_email || activeMeeting.user_email}`] : []),
+      ...(activeMeeting.salvo_por_email || activeMeeting.user_email ? [`📧 *Registrado por:* ${activeMeeting.salvo_por_email || activeMeeting.user_email}`] : []),
       ...(activeMeeting.tipo_semana !== 'Normal' ? [`🏷️ *Modalidade:* ${activeMeeting.tipo_semana}`] : []),
       ``,
-      `⏱️ *Duração Real:* ${activeMeeting.duracao_real_minutos} min (Planejado: ${activeMeeting.duracao_planejada_minutos} min)`,
-      `⚖️ *Saldo Final:* ${formatBalanceDisplay(activeMeeting.saldo_final_segundos)}`,
-      `📈 *Partes no Tempo Correto:* ${partsOnTime}/${activeMeeting.partes.length} (${Math.round((partsOnTime / Math.max(1, activeMeeting.partes.length)) * 100)}%)`,
+      `⏱️ *Duração da Reunião:* ${activeMeeting.duracao_real_minutos} min (Programado: ${activeMeeting.duracao_planejada_minutos} min)`,
+      `⚖️ *Resultado:* ${formatBalanceText(activeMeeting.saldo_final_segundos)}`,
+      `📈 *Partes no Tempo:* ${partsOnTime} de ${activeMeeting.partes.length} (${Math.round((partsOnTime / Math.max(1, activeMeeting.partes.length)) * 100)}%)`,
       ``,
-      `*DETALHAMENTO DAS PARTES:*`,
+      `*DETALHES DAS PARTES:*`,
       `---------------------------------`,
       ...activeMeeting.partes.map((p) => {
         let speakerStr = '';
         if (!p.hideSpeaker && p.speaker && !p.title.toLowerCase().includes(p.speaker.toLowerCase())) {
-          speakerStr = `\n${p.speaker}`;
+          speakerStr = ` — ${p.speaker}`;
           if (p.assistant && !p.title.toLowerCase().includes(p.assistant.toLowerCase())) {
             speakerStr += ` c/ ${p.assistant}`;
           }
         }
 
-        const diffSeconds = p.actualTime - (p.plannedTime * 60);
-        const isOver = p.status === 'Excedido' || diffSeconds > 0;
         const timeFormatted = formatTime(p.actualTime);
-        const diffFormatted = formatTime(Math.abs(diffSeconds));
-        
-        const statusDetail = isOver 
-          ? `(Ultrapassou) ${diffFormatted}\n(Excedido)`
-          : `(Sobra de tempo) ${diffFormatted}\nNo tempo correto`;
+        const statusDetail = formatPartStatus(p.actualTime, p.plannedTime);
+        const numberPrefix = p.partNumber != null ? `Parte ${p.partNumber}: ` : '';
 
-        const numberPrefix = p.partNumber != null ? `${p.partNumber}\n` : '';
-
-        return `${numberPrefix}${p.title}${speakerStr}\n\n${timeFormatted} / ${p.plannedTime}m\n${statusDetail}\n-------`;
+        return `• *${numberPrefix}${p.title}*${speakerStr}\n  ⏱️ ${timeFormatted} / ${p.plannedTime} min (${statusDetail})`;
       }),
       ``,
-      `_Relatório Oficial gerado pelo Assistente de Palco_`
+      `_Assistente de Palco — JW_`
     ];
 
     navigator.clipboard.writeText(lines.join('\n'));
