@@ -507,6 +507,8 @@ export function applyPdfWeekToMeetingParts(
   const ebc = parts.find(p => p.id === 'estudo');
   if (ebc) {
     ebc.partNumber = week.christianLivingParts.length > 1 ? 9 : 8;
+    ebc.plannedTime = 30;
+    ebc.flexible = false;
     if (week.congregationStudyConductor) {
       ebc.speaker = week.congregationStudyConductor;
     }
@@ -522,6 +524,8 @@ export function applyPdfWeekToMeetingParts(
   const comentFinais = parts.find(p => p.id === 'comentarios_finais');
   if (comentFinais) {
     comentFinais.partNumber = undefined;
+    comentFinais.plannedTime = 3;
+    comentFinais.flexible = false;
     if (week.president) {
       comentFinais.speaker = week.president;
     }

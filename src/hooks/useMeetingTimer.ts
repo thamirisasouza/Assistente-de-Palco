@@ -34,6 +34,66 @@ import {
 const STORAGE_SETTINGS_KEY = 'jw_stage_settings';
 const STORAGE_ACTIVE_SESSION_KEY = 'jw_stage_active_session';
 
+export function normalizePartPlannedTime(part: PartRecord): PartRecord {
+  let expectedTime = part.plannedTime;
+
+  if (part.id === 'estudo' || part.title.toLowerCase().includes('estudo bíblico') || part.title.toLowerCase().includes('estudo biblico')) {
+    expectedTime = 30;
+  } else if (part.id === 'discurso_sc' || part.title.toLowerCase().includes('superintendente')) {
+    expectedTime = 30;
+  } else if (part.id === 'comentarios_finais' || part.title.toLowerCase().includes('comentários finais') || part.title.toLowerCase().includes('comentarios finais')) {
+    expectedTime = 3;
+  } else if (part.id === 'discurso' && expectedTime !== 10) {
+    expectedTime = 10;
+  } else if (part.id === 'joias' && expectedTime !== 10) {
+    expectedTime = 10;
+  } else if (part.id === 'leitura' && expectedTime !== 4) {
+    expectedTime = 4;
+  } else if (part.id === 'abertura' && expectedTime !== 5) {
+    expectedTime = 5;
+  } else if (part.id === 'comentarios' && expectedTime !== 1) {
+    expectedTime = 1;
+  } else if (part.id === 'vida_cantico' && expectedTime !== 5) {
+    expectedTime = 5;
+  } else if (part.id === 'conclusao_cantico' && expectedTime !== 6) {
+    expectedTime = 6;
+  }
+
+  if (expectedTime !== part.plannedTime) {
+    const diffSeconds = part.actualTime - (expectedTime * 60);
+    const newStatus = diffSeconds > 0 ? 'Excedido' : (part.actualTime < (expectedTime * 60) / 2 ? 'Terminou antes do tempo' : 'No tempo correto');
+    return {
+      ...part,
+      plannedTime: expectedTime,
+      status: newStatus
+    };
+  }
+
+  return part;
+}
+
+export function sanitizeCompletedMeeting(meeting: CompletedMeeting): CompletedMeeting {
+  if (!meeting || !meeting.partes) return meeting;
+
+  let hasChanged = false;
+  const sanitizedPartes = meeting.partes.map(p => {
+    const updated = normalizePartPlannedTime(p);
+    if (updated !== p) hasChanged = true;
+    return updated;
+  });
+
+  if (!hasChanged) return meeting;
+
+  const updatedMeeting = {
+    ...meeting,
+    partes: sanitizedPartes
+  };
+
+  saveFirebaseMeeting(updatedMeeting).catch(() => {});
+
+  return updatedMeeting;
+}
+
 export function useMeetingTimer() {
   // Garantir a exclusão completa de qualquer histórico local anterior que possa ter ficado no navegador
   useEffect(() => {
@@ -108,8 +168,10 @@ export function useMeetingTimer() {
         // 2. Sincronizar histórico de reuniões: mantém SOMENTE o que existe no banco de dados oficial
         const remoteMeetings = await fetchFirebaseMeetings();
         if (isMounted) {
-          // Filtra demos caso algum tenha sido salvo anteriormente
-          const cleanRemote = (remoteMeetings || []).filter(m => !m.id.startsWith('demo-'));
+          // Filtra demos caso algum tenha sido salvo anteriormente e sanitiza plannedTimes
+          const cleanRemote = (remoteMeetings || [])
+            .filter(m => !m.id.startsWith('demo-'))
+            .map(sanitizeCompletedMeeting);
           setArchivedMeetings(cleanRemote);
           setFirebaseStatus('synced');
         }
@@ -132,7 +194,9 @@ export function useMeetingTimer() {
 
     const unsubscribe = subscribeToFirebaseMeetings((liveMeetings) => {
       if (!isMounted) return;
-      const cleanLive = (liveMeetings || []).filter(m => !m.id.startsWith('demo-'));
+      const cleanLive = (liveMeetings || [])
+        .filter(m => !m.id.startsWith('demo-'))
+        .map(sanitizeCompletedMeeting);
       setArchivedMeetings(cleanLive);
       setFirebaseStatus('synced');
     });
@@ -578,22 +642,6 @@ export function useMeetingTimer() {
         // Finishing a main meeting part
         const overTime = actualTimeSpent - (currentPart.plannedTime * 60);
         newState.timeBalance += overTime;
-        
-        // S-38-T: Flexible parts absorption if delayed
-        if (overTime > 0) {
-          let remainingOvertime = overTime;
-          for (let i = prev.currentPartIndex + 1; i < newState.parts.length; i++) {
-            if (newState.parts[i].flexible && remainingOvertime > 0) {
-              const possibleReduction = Math.max(0, newState.parts[i].plannedTime * 60 - 60);
-              const reduction = Math.min(possibleReduction, remainingOvertime);
-              
-              if (reduction > 0) {
-                newState.parts[i].plannedTime = parseFloat(((newState.parts[i].plannedTime * 60 - reduction) / 60).toFixed(1));
-                remainingOvertime -= reduction;
-              }
-            }
-          }
-        }
         
         // Grava ou atualiza no histórico (sem duplicar)
         const record: PartRecord = {

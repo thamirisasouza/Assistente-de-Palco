@@ -142,8 +142,8 @@ export const DEFAULT_PARTS_NORMAL: MeetingPart[] = [
   { id: "ministerio3", partNumber: 6, title: "Ministério: Parte 3", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
   { id: "vida_cantico", title: "Cântico Intermediário", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: true },
   { id: "vida1", partNumber: 7, title: "Nossa Vida Cristã: Parte 1", plannedTime: 15, flexible: false, hasCounsel: false },
-  { id: "estudo", partNumber: 8, title: "Estudo Bíblico de Congregação", plannedTime: 30, flexible: true, hasCounsel: false, supportsAssistant: true },
-  { id: "comentarios_finais", title: "Comentários Finais", plannedTime: 3, flexible: true, hasCounsel: false },
+  { id: "estudo", partNumber: 8, title: "Estudo Bíblico de Congregação", plannedTime: 30, flexible: false, hasCounsel: false, supportsAssistant: true },
+  { id: "comentarios_finais", title: "Comentários Finais", plannedTime: 3, flexible: false, hasCounsel: false },
   { id: "conclusao_cantico", title: "Cântico e Oração Finais", plannedTime: 6, flexible: false, hasCounsel: false, hideSpeaker: false }
 ];
 
@@ -159,8 +159,8 @@ export const DEFAULT_PARTS_SC_MIDWEEK: MeetingPart[] = [
   { id: "ministerio3", partNumber: 6, title: "Ministério: Parte 3", plannedTime: 4, flexible: false, hasCounsel: true, supportsAssistant: true },
   { id: "vida_cantico", title: "Cântico Intermediário", plannedTime: 5, flexible: false, hasCounsel: false, hideSpeaker: true },
   { id: "vida1", partNumber: 7, title: "Nossa Vida Cristã: Parte 1", plannedTime: 15, flexible: false, hasCounsel: false },
-  { id: "discurso_sc", partNumber: 8, title: "Discurso de Serviço do Superintendente de Circuito", plannedTime: 30, flexible: true, hasCounsel: false, speaker: "Superintendente de Circuito" },
-  { id: "comentarios_finais", title: "Comentários Finais", plannedTime: 3, flexible: true, hasCounsel: false },
+  { id: "discurso_sc", partNumber: 8, title: "Discurso de Serviço do Superintendente de Circuito", plannedTime: 30, flexible: false, hasCounsel: false, speaker: "Superintendente de Circuito" },
+  { id: "comentarios_finais", title: "Comentários Finais", plannedTime: 3, flexible: false, hasCounsel: false },
   { id: "conclusao_cantico", title: "Cântico e Oração Finais (Oração pelo SC)", plannedTime: 6, flexible: false, hasCounsel: false, speaker: "Superintendente de Circuito" }
 ];
 
