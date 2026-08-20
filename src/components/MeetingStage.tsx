@@ -205,7 +205,7 @@ export function MeetingStage({
       isOvertime && "ring-4 ring-inset ring-red-500/50"
     )}>
       
-      {/* 1. Header Top Bar (Relógio, Andamento, Saldo, Som, Botão Finalizar e Botão Fechar Tela) */}
+      {/* 1. Header Top Bar (Término Previsto, Saldo, Som, Botão Finalizar e Botão Fechar Tela) */}
       <header className={cn(
         "h-20 border-b flex items-center justify-between px-3 sm:px-6 md:px-8 shadow-sm shrink-0 z-30 transition-colors pt-safe",
         isAllPartsDone
@@ -213,18 +213,9 @@ export function MeetingStage({
           : "bg-white dark:bg-[#1E293B] border-slate-200 dark:border-slate-800"
       )}>
         
-        {/* Esquerda: Relógio & Término Previsto */}
+        {/* Esquerda: Término Previsto */}
         <div className="flex items-center gap-3 sm:gap-6">
           <div className="flex flex-col">
-            <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Relógio</span>
-            <span className="text-lg sm:text-2xl font-mono font-bold text-slate-800 dark:text-slate-100">
-              {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-          
-          <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
-          
-          <div className="flex flex-col hidden sm:flex">
             <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Término Previsto</span>
             <span className="text-xl md:text-2xl font-mono font-bold text-slate-700 dark:text-slate-200">
               {estimatedEndTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -232,43 +223,7 @@ export function MeetingStage({
           </div>
         </div>
 
-        {/* Centro: Anel de Progresso & Índice de Andamento */}
-        <div className="flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
-          <div className="relative w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 56 56">
-              <circle
-                cx="28"
-                cy="28"
-                r={radius}
-                className="text-slate-300 dark:text-slate-700 stroke-current"
-                strokeWidth="5"
-                fill="transparent"
-              />
-              <circle
-                cx="28"
-                cy="28"
-                r={radius}
-                className="text-[#295E9F] dark:text-[#4A6CA7] stroke-current transition-all duration-500 ease-out"
-                strokeWidth="5"
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
-                strokeLinecap="round"
-                fill="transparent"
-              />
-            </svg>
-            <span className="absolute text-[10px] sm:text-[11px] font-mono font-bold text-slate-800 dark:text-slate-100">
-              {progressPercent}%
-            </span>
-          </div>
-          <div className="flex flex-col hidden xs:flex">
-            <span className="text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Andamento</span>
-            <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">
-              {Math.round(state.totalElapsedSeconds / 60)} / {TOTAL_PLANNED_MEETING_MINUTES} min
-            </span>
-          </div>
-        </div>
-
-        {/* Direita: Saldo de Tempo + Botão Som + Botão Ordem + Botão Finalizar + Fechar */}
+        {/* Direita: Saldo de Tempo + Botão Som + Botão Finalizar + Fechar */}
         <div className="flex items-center gap-1.5 sm:gap-3">
           <div className="flex flex-col items-end mr-1">
             <span className="text-[9px] sm:text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">
@@ -295,17 +250,6 @@ export function MeetingStage({
             aria-label="Controle de Som"
           >
             {isSoundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          </button>
-
-          {/* Botão de Ordem das Partes / Adiantar */}
-          <button 
-            onClick={() => setShowPartsOrderModal(true)} 
-            className="h-10 sm:h-11 px-2 sm:px-3.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:border-amber-500/50 rounded-xl flex items-center gap-1.5 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
-            title="Ordem das Partes / Adiantar se alguém atrasou"
-          >
-            <ArrowUpDown className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span className="hidden md:inline">Ordem das Partes</span>
-            <span className="md:hidden">Ordem</span>
           </button>
 
           {/* Botão de Finalizar Reunião (Sempre acessível para o presidente) */}
