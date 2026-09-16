@@ -1,0 +1,15 @@
+--- src/types.ts
++++ src/types.ts
+@@ -107,2 +107,13 @@
+ 
++export interface ActionLog {
++  id: string;
++  action: 'create_history' | 'delete_history';
++  meetingId: string;
++  meetingDate?: string;
++  timestamp: string;
++  userEmail?: string;
++  details?: string;
++}
++
+ export interface JWWeek {

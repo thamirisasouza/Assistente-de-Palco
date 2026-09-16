@@ -14,6 +14,7 @@ import { groupPartsBySection, SECTIONS } from '../lib/sectionColors';
 import { AnalyticsCharts } from './AnalyticsCharts';
 import { exportMeetingToPdf } from '../lib/pdfExporter';
 import { NavTab } from './BottomNavigation';
+import { ActionLogs } from './ActionLogs';
 import { MonthPdfParseResult, findMatchingWeekForDate } from '../lib/apostilaParser';
 
 interface SetupProps {
@@ -171,8 +172,7 @@ export function Setup({
                     className="px-3.5 py-2 rounded-2xl bg-sky-500/10 hover:bg-sky-500/20 text-[#295E9F] dark:text-[#4A6CA7] border border-sky-500/20 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                     title="Importar PDF da apostila mensal"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-sky-500" />
-                    Fazer upload do PDF
+                    Importar PDF
                   </button>
 
                   {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 && onClearMonthlySchedule && (
@@ -741,6 +741,15 @@ export function Setup({
               knownBrothers={settings.brothers}
               onViewMeeting={onViewArchivedMeeting}
             />
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* ABA 6: LOGS */}
+        {/* ========================================================= */}
+        {activeTab === 'log' && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <ActionLogs />
           </div>
         )}
 

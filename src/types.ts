@@ -4,6 +4,16 @@ export type WeekType =
   | 'Normal' 
   | 'Visita do SC (Semana)';
 
+export interface ActionLog {
+  id: string;
+  action: 'create_history' | 'delete_history';
+  meetingId: string;
+  meetingDate?: string;
+  timestamp: string;
+  userEmail?: string;
+  details?: string;
+}
+
 export interface Brother {
   id: string;
   name: string;

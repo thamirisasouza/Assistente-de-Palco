@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { CongregationSettings, CompletedMeeting } from "../types";
+import { CongregationSettings, CompletedMeeting, ActionLog } from "../types";
 
 // Configuração oficial do Firebase fornecida pelo usuário
 export const firebaseConfig = {
@@ -197,6 +197,42 @@ export function subscribeToFirebaseMeetings(callback: (meetings: CompletedMeetin
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, MEETINGS_COLLECTION_PATH);
+    return () => {};
+  }
+}
+
+const LOGS_COLLECTION_PATH = "congregations/default/logs";
+
+export async function logAction(log: Omit<ActionLog, 'id' | 'timestamp'>) {
+  try {
+    const id = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+    const docRef = doc(db, `${LOGS_COLLECTION_PATH}/${id}`);
+    const fullLog: ActionLog = {
+      ...log,
+      id,
+      timestamp: new Date().toISOString()
+    };
+    await setDoc(docRef, cleanUndefined(fullLog));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, LOGS_COLLECTION_PATH);
+  }
+}
+
+export function subscribeToFirebaseLogs(callback: (logs: ActionLog[]) => void) {
+  try {
+    const colRef = collection(db, LOGS_COLLECTION_PATH);
+    return onSnapshot(colRef, (snapshot) => {
+      const list: ActionLog[] = [];
+      snapshot.forEach((d) => {
+        list.push(d.data() as ActionLog);
+      });
+      list.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+      callback(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, LOGS_COLLECTION_PATH);
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, LOGS_COLLECTION_PATH);
     return () => {};
   }
 }

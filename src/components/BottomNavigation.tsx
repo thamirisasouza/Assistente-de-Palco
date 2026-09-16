@@ -2,7 +2,7 @@ import React from 'react';
 import { Home, Users, Play, BarChart3, Menu, FileText, Settings } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-export type NavTab = 'programacao' | 'publicadores' | 'graficos' | 'historico' | 'configuracoes';
+export type NavTab = 'programacao' | 'publicadores' | 'graficos' | 'historico' | 'configuracoes' | 'log';
 
 interface BottomNavigationProps {
   activeTab: NavTab;

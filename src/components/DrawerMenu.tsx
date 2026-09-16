@@ -186,6 +186,20 @@ export function DrawerMenu({
             <ChevronRight className="w-4 h-4 text-[#295E9F]" />
           </button>
 
+          {/* Logs de Atividade */}
+          <button
+            onClick={() => handleItemClick('log')}
+            className="w-full flex items-center justify-between p-3.5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 group-hover:bg-[#295E9F]/10 group-hover:text-[#295E9F] flex items-center justify-center transition-colors">
+                <Info className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-semibold">Logs de Atividades</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400" />
+          </button>
+
           <div className="my-2 border-t border-slate-100 dark:border-slate-800" />
 
           {/* Alternar Tema */}

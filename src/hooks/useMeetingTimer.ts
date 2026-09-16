@@ -209,11 +209,30 @@ export function useMeetingTimer() {
   }, []);
 
   const saveToArchive = (meeting: CompletedMeeting) => {
+    import('../lib/firebase').then(({ logAction, auth }) => {
+      logAction({
+        action: 'create_history',
+        meetingId: meeting.id,
+        meetingDate: meeting.data_formatada,
+        userEmail: auth.currentUser?.email || undefined,
+        details: `Reunião salva: ${meeting.data_formatada}`
+      });
+    });
     // Apenas salva no Firebase, o realtime listener (subscribeToFirebaseMeetings) atualizará a lista local
     saveFirebaseMeeting(meeting).catch(e => console.error("Error saving meeting to Firebase:", e));
   };
 
   const deleteFromArchive = (id: string) => {
+    const meetingToDelete = archivedMeetings.find(m => m.id === id);
+    import('../lib/firebase').then(({ logAction, auth }) => {
+      logAction({
+        action: 'delete_history',
+        meetingId: id,
+        meetingDate: meetingToDelete?.data_formatada,
+        userEmail: auth.currentUser?.email || undefined,
+        details: `Reunião excluída: ${meetingToDelete?.data_formatada || id}`
+      });
+    });
     // Remove do Firebase, o realtime listener (subscribeToFirebaseMeetings) atualizará a lista local
     deleteFirebaseMeeting(id).catch(e => console.error("Error deleting meeting from Firebase:", e));
   };
