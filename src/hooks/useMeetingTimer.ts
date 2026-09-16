@@ -187,8 +187,8 @@ export function useMeetingTimer() {
     const unsubscribeSettings = subscribeToFirebaseSettings((liveSettings) => {
       if (!isMounted || !liveSettings) return;
       if (liveSettings.name || liveSettings.brothers?.length) {
-        setSettings(liveSettings);
-        safeStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(liveSettings));
+        let sanitized = liveSettings; if (sanitized.brothers) { const seenIds = new Set<string>(); sanitized.brothers = sanitized.brothers.map((b, idx) => { let brotherId = b.id; if (!brotherId || seenIds.has(brotherId)) { brotherId = `br-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`; } seenIds.add(brotherId); return { ...b, id: brotherId }; }); } setSettings(sanitized);
+        safeStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(sanitized));
       }
     });
 

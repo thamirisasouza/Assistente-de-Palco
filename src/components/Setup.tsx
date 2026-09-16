@@ -103,6 +103,7 @@ export function Setup({
     if (newBrotherName.trim()) {
       onAddBrother(newBrotherName.trim(), newBrotherRole);
       setNewBrotherName('');
+      setNewBrotherRole('Publicador');
     }
   };
 
@@ -402,7 +403,7 @@ export function Setup({
                                       >
                                         <option value="">👤 Selecionar Orador...</option>
                                         {settings.brothers.map(b => (
-                                          <option key={b.id} value={b.name}>{b.name}</option>
+                                          <option key={b.id} value={b.name}>{b.name} ({b.role})</option>
                                         ))}
                                       </select>
 
@@ -414,7 +415,7 @@ export function Setup({
                                         >
                                           <option value="">📖 Leitor / Ajudante...</option>
                                           {settings.brothers.map(b => (
-                                            <option key={b.id} value={b.name}>{b.name}</option>
+                                            <option key={b.id} value={b.name}>{b.name} ({b.role})</option>
                                           ))}
                                         </select>
                                       )}

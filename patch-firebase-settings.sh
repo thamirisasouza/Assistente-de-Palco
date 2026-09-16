@@ -1,0 +1,2 @@
+#!/bin/bash
+sed -i 's/setSettings(liveSettings);/let sanitized = liveSettings; if (sanitized.brothers) { const seenIds = new Set<string>(); sanitized.brothers = sanitized.brothers.map((b, idx) => { let brotherId = b.id; if (!brotherId || seenIds.has(brotherId)) { brotherId = `br-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`; } seenIds.add(brotherId); return { ...b, id: brotherId }; }); } setSettings(sanitized);/' src/hooks/useMeetingTimer.ts

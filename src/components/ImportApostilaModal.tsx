@@ -29,7 +29,7 @@ import {
   FileCheck2, 
   FileCode, 
   Layers, 
-  HelpCircle 
+  HelpCircle, Trash2 
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -58,7 +58,7 @@ export function ImportApostilaModal({
   const [activeInputMode, setActiveInputMode] = useState<'upload' | 'paste'>('upload');
   const [inputText, setInputText] = useState("");
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
-  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const [loadedPdfs, setLoadedPdfs] = useState<{id: string, name: string, text: string}[]>([]);
   const [parseResult, setParseResult] = useState<MonthPdfParseResult | null>(null);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(0);
   const [step, setStep] = useState<'input' | 'review'>('input');
@@ -70,18 +70,24 @@ export function ImportApostilaModal({
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0) return;
     
-    // allow up to 10 files
     const filesToProcess = files.slice(0, 10);
-    
-    setPdfFileName(filesToProcess.length > 1 ? `${filesToProcess.length} arquivos PDF` : filesToProcess[0].name);
     setIsProcessingPdf(true);
 
     try {
-      let combinedText = "";
+      const newPdfs = [];
       for (const file of filesToProcess) {
         const extracted = await readPdfFile(file);
-        combinedText += extracted.fullText + "\n\n--- NOVA PÁGINA ---\n\n";
+        newPdfs.push({
+          id: Math.random().toString(36).substring(2, 9),
+          name: file.name,
+          text: extracted.fullText
+        });
       }
+      
+      const allPdfs = [...loadedPdfs, ...newPdfs];
+      setLoadedPdfs(allPdfs);
+      
+      const combinedText = allPdfs.map(p => p.text).join("\n\n--- NOVA PÁGINA ---\n\n");
       
       setInputText(combinedText);
       const parsed = parseMonthlyPdfText(combinedText);
@@ -93,12 +99,33 @@ export function ImportApostilaModal({
       setStep('review');
     } catch (err) {
       console.error("Erro ao ler PDF(s):", err);
-      // Fallback para modo texto
       setActiveInputMode('paste');
       alert("Não foi possível extrair o texto diretamente dos arquivos PDF. Por favor, cole o texto na aba 'Colar Texto'.");
     } finally {
       setIsProcessingPdf(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleDeletePdf = (id: string) => {
+    const updatedPdfs = loadedPdfs.filter(p => p.id !== id);
+    setLoadedPdfs(updatedPdfs);
+    
+    if (updatedPdfs.length === 0) {
+      setInputText("");
+      setParseResult(null);
+      setStep('input');
+      return;
+    }
+    
+    const combinedText = updatedPdfs.map(p => p.text).join("\n\n--- NOVA PÁGINA ---\n\n");
+    setInputText(combinedText);
+    const parsed = parseMonthlyPdfText(combinedText);
+    setParseResult(parsed);
+    
+    const matchingWeek = findMatchingWeekForDate(parsed.weeks, new Date());
+    const matchingIndex = matchingWeek ? parsed.weeks.findIndex(w => w.id === matchingWeek.id) : 0;
+    setSelectedWeekIndex(matchingIndex >= 0 ? matchingIndex : 0);
   };
 
   const handleProcessText = () => {
@@ -154,9 +181,7 @@ export function ImportApostilaModal({
                 <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
                   Importador Mensal de Programação (PDF)
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
-                  Padrão Mensal
-                </span>
+                
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Lê todas as semanas do mês, oradores, leitores, ajudantes e cânticos automaticamente
@@ -172,18 +197,20 @@ export function ImportApostilaModal({
           </button>
         </div>
 
-        {/* Legal & Privacy Compliance */}
-        <div className="px-5 sm:px-6 py-2 bg-sky-500/5 dark:bg-sky-500/10 border-b border-sky-500/20 text-xs text-sky-800 dark:text-sky-300 flex items-center gap-2 shrink-0">
-          <ShieldCheck className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
-          <span className="text-[11px] leading-tight">
-            <strong>Processamento 100% no seu navegador:</strong> O arquivo PDF é lido localmente no seu dispositivo. Nenhum dado é enviado para servidores externos.
-          </span>
-        </div>
+        
 
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5">
           
-          {step === 'input' ? (
+          <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileUpload}
+          accept="application/pdf"
+          multiple
+          className="hidden"
+        />
+        {step === 'input' ? (
             /* ETAPA 1: ESCOLHA DE ENTRADA (PDF OU TEXTO) */
             <div className="space-y-5">
               
@@ -220,15 +247,6 @@ export function ImportApostilaModal({
               {activeInputMode === 'upload' ? (
                 /* UPLOAD DRAG & DROP */
                 <div className="space-y-4">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    accept="application/pdf"
-                    multiple
-                    className="hidden"
-                  />
-
                   <div 
                     onClick={() => fileInputRef.current?.click()}
                     className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-[#295E9F] dark:hover:border-[#4A6CA7] rounded-3xl p-8 sm:p-12 text-center cursor-pointer transition-all bg-slate-50/50 dark:bg-[#0F172A]/30 hover:bg-[#295E9F]/5 flex flex-col items-center justify-center gap-3 group"
@@ -322,13 +340,38 @@ export function ImportApostilaModal({
                     </span>
                   </div>
                   <button
-                    onClick={() => setStep('input')}
+                    onClick={() => fileInputRef.current?.click()}
                     className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white underline flex items-center gap-1"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    Carregar outro PDF
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    Adicionar PDF
                   </button>
                 </div>
+
+                
+                {loadedPdfs.length > 0 && (
+                  <div className="space-y-1.5 mt-3">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5" />
+                      PDFs Carregados:
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      {loadedPdfs.map(pdf => (
+                        <div key={pdf.id} className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700">
+                          <span className="text-xs text-slate-700 dark:text-slate-300 font-semibold truncate flex-1 mr-2">{pdf.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePdf(pdf.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            title="Excluir PDF"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Seletor de Semanas do Mês */}
                 <div className="space-y-1.5">
