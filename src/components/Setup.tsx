@@ -172,7 +172,7 @@ export function Setup({
                     title="Importar PDF da apostila mensal"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-sky-500" />
-                    {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 ? 'Trocar PDF' : 'Importar PDF'}
+                    Fazer upload do PDF
                   </button>
 
                   {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 && onClearMonthlySchedule && (

@@ -67,16 +67,24 @@ export function ImportApostilaModal({
   if (!isOpen) return null;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const file = files[0];
-    setPdfFileName(file.name);
+    const files = Array.from(e.target.files || []) as File[];
+    if (files.length === 0) return;
+    
+    // allow up to 10 files
+    const filesToProcess = files.slice(0, 10);
+    
+    setPdfFileName(filesToProcess.length > 1 ? `${filesToProcess.length} arquivos PDF` : filesToProcess[0].name);
     setIsProcessingPdf(true);
 
     try {
-      const extracted = await readPdfFile(file);
-      setInputText(extracted.fullText);
-      const parsed = parseMonthlyPdfText(extracted.fullText);
+      let combinedText = "";
+      for (const file of filesToProcess) {
+        const extracted = await readPdfFile(file);
+        combinedText += extracted.fullText + "\n\n--- NOVA PÁGINA ---\n\n";
+      }
+      
+      setInputText(combinedText);
+      const parsed = parseMonthlyPdfText(combinedText);
       setParseResult(parsed);
 
       const matchingWeek = findMatchingWeekForDate(parsed.weeks, new Date());
@@ -84,10 +92,10 @@ export function ImportApostilaModal({
       setSelectedWeekIndex(matchingIndex >= 0 ? matchingIndex : 0);
       setStep('review');
     } catch (err) {
-      console.error("Erro ao ler PDF:", err);
+      console.error("Erro ao ler PDF(s):", err);
       // Fallback para modo texto
       setActiveInputMode('paste');
-      alert("Não foi possível extrair o texto diretamente deste arquivo PDF. Por favor, cole o texto na aba 'Colar Texto'.");
+      alert("Não foi possível extrair o texto diretamente dos arquivos PDF. Por favor, cole o texto na aba 'Colar Texto'.");
     } finally {
       setIsProcessingPdf(false);
     }
@@ -217,6 +225,7 @@ export function ImportApostilaModal({
                     ref={fileInputRef}
                     onChange={handleFileUpload}
                     accept="application/pdf"
+                    multiple
                     className="hidden"
                   />
 
@@ -229,10 +238,10 @@ export function ImportApostilaModal({
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-800 dark:text-white">
-                        {isProcessingPdf ? "Lendo e interpretando PDF..." : "Clique para selecionar ou arraste o PDF da Reunião"}
+                        {isProcessingPdf ? "Lendo e interpretando PDFs..." : "Clique para selecionar ou arraste até 10 PDFs"}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        Formato padrão de escala mensal (ex: Jardim Rosana - Ferraz de Vasconcelos SP)
+                        Você pode selecionar vários PDFs de uma vez
                       </p>
                     </div>
 
@@ -241,7 +250,7 @@ export function ImportApostilaModal({
                       disabled={isProcessingPdf}
                       className="mt-2 px-5 py-2.5 bg-[#295E9F] hover:bg-[#3474C2] text-white text-xs font-bold rounded-xl shadow-md transition-all"
                     >
-                      {isProcessingPdf ? "Processando..." : "Selecionar Arquivo PDF"}
+                      {isProcessingPdf ? "Processando..." : "Selecionar Arquivos PDF"}
                     </button>
                   </div>
                 </div>
