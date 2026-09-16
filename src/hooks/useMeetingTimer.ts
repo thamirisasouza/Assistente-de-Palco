@@ -428,14 +428,6 @@ export function useMeetingTimer() {
     const matchingWeek = findMatchingWeekForDate(parseResult.weeks, new Date()) || parseResult.weeks[0];
 
     const baseParts = getPartsForWeekType(settings.weekType);
-    const updatedParts = applyPdfWeekToMeetingParts(baseParts, matchingWeek);
-
-    setState(prev => ({
-      ...prev,
-      parts: updatedParts,
-      importedWeekLabel: matchingWeek.weekLabel
-    }));
-
     // Adiciona irmãos encontrados automaticamente
     const existingMap = new Set(settings.brothers.map(b => b.name.toLowerCase().trim()));
     const toAdd: Brother[] = [];
