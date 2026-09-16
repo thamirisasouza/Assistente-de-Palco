@@ -155,7 +155,7 @@ export function parseMonthlyPdfText(fullText: string): MonthPdfParseResult {
     const lines = weekText.split('\n').map(l => cleanStr(l)).filter(Boolean);
 
     const week: ParsedWeekSchedule = {
-      id: `week-${idx + 1}`,
+      id: `week-${block.date.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${idx}`, // ID único baseado na data
       weekLabel: block.reading ? `${block.date} | ${block.reading}` : block.date,
       date: block.date,
       bibleReading: block.reading,
