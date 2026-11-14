@@ -146,8 +146,11 @@ export default function App() {
               onViewArchive={() => setCurrentTab('historico')}
               onViewArchivedMeeting={timerContext.viewArchivedMeeting}
               onDeleteMeeting={timerContext.deleteFromArchive}
+              onRestoreLog={timerContext.restoreMeetingFromLog}
+              onRecoverMissingHistory={timerContext.recoverMissingHistory}
               onApplyMonthSchedule={timerContext.applyMonthSchedule}
               onSelectWeek={timerContext.selectWeekFromSchedule}
+              onRemoveMonthFromSchedule={timerContext.removeMonthFromSchedule}
               onClearMonthlySchedule={timerContext.clearMonthlySchedule}
               isImportModalOpen={isImportModalOpen}
               onSetIsImportModalOpen={setIsImportModalOpen}

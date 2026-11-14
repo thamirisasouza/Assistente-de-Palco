@@ -511,11 +511,13 @@ export function MeetingStage({
                               </span>
                               <span className={cn(
                                 "font-bold uppercase",
-                                historyItem.status === 'Excedido' ? "text-amber-500 dark:text-amber-400" :
+                                historyItem.actualTime > historyItem.plannedTime * 60 ? "text-amber-500 dark:text-amber-400" :
                                 historyItem.status === 'Terminou antes do tempo' ? "text-sky-500 dark:text-sky-400" :
                                 "text-emerald-500 dark:text-emerald-400"
                               )}>
-                                {historyItem.status}
+                                {historyItem.actualTime > historyItem.plannedTime * 60
+                                  ? `+${formatTime(historyItem.actualTime - historyItem.plannedTime * 60)} Excedido`
+                                  : historyItem.status}
                               </span>
                             </div>
                           )}
@@ -923,7 +925,7 @@ export function MeetingStage({
                               )}
                               {isCompleted && historyItem && (
                                 <p className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
-                                  ✓ Concluída em {formatTime(historyItem.actualTime)} ({historyItem.status})
+                                  ✓ Concluída em {formatTime(historyItem.actualTime)} ({historyItem.actualTime > historyItem.plannedTime * 60 ? `+${formatTime(historyItem.actualTime - historyItem.plannedTime * 60)} Excedido` : historyItem.status})
                                 </p>
                               )}
                             </div>

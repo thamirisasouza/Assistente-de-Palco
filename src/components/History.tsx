@@ -56,13 +56,10 @@ export function History({
   }
 
   const isPartOnTime = (p: { status?: string; actualTime: number; plannedTime: number }) => {
-    if (p.status === 'No tempo correto' || p.status === 'No tempo') return true;
-    if (p.status === 'Excedido') return false;
     return p.actualTime <= (p.plannedTime * 60);
   };
 
   const partsOnTime = activeMeeting.partes.filter(isPartOnTime).length;
-  const partsExceeded = activeMeeting.partes.length - partsOnTime;
 
   const balanceColors = getBalanceColorClass(activeMeeting.saldo_final_segundos);
 
@@ -73,7 +70,6 @@ export function History({
       exportMeetingToPdf(targetMeeting);
     } catch (e) {
       console.error("Erro ao gerar PDF:", e);
-      alert("Houve um problema ao gerar o PDF. Tente novamente.");
     } finally {
       setTimeout(() => setDownloadingPdf(false), 1200);
     }
@@ -262,7 +258,8 @@ export function History({
           <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
             {activeMeeting.partes.map((p, index) => {
               const diffSeconds = p.actualTime - (p.plannedTime * 60);
-              const isExceeded = p.status === 'Excedido' || diffSeconds > 0;
+              const exceededSeconds = Math.max(0, diffSeconds);
+              const isExceeded = diffSeconds > 0;
 
               return (
                 <div key={index} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
@@ -299,7 +296,7 @@ export function History({
                         "text-[10px] font-bold",
                         isExceeded ? "text-red-500" : "text-emerald-500"
                       )}>
-                        {diffSeconds > 0 ? `+${formatTime(diffSeconds)}` : diffSeconds < 0 ? `-${formatTime(Math.abs(diffSeconds))}` : "00:00"}
+                        {diffSeconds > 0 ? `+${formatTime(exceededSeconds)}` : diffSeconds < 0 ? `-${formatTime(Math.abs(diffSeconds))}` : "00:00"}
                       </span>
                     </div>
 
@@ -309,7 +306,7 @@ export function History({
                         ? "bg-red-500 text-white border-red-600 shadow-sm font-black" 
                         : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                     )}>
-                      {isExceeded ? `${formatTime(p.actualTime)} (Excedido)` : "No tempo correto"}
+                      {isExceeded ? `+${formatTime(exceededSeconds)} (Excedido)` : "No tempo correto"}
                     </span>
                   </div>
                 </div>

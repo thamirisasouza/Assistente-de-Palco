@@ -68,7 +68,6 @@ export async function testFirebaseConnection(): Promise<boolean> {
     await getDocFromServer(doc(db, "health", "ping"));
     return true;
   } catch (err) {
-    // Se for erro de offline ou permissão, mas o SDK inicializou
     console.log("Firebase connection test check:", err);
     return true;
   }
@@ -77,19 +76,103 @@ export async function testFirebaseConnection(): Promise<boolean> {
 // Constantes de caminhos
 const CONGREGATION_DOC_PATH = "congregations/default/settings/current";
 const MEETINGS_COLLECTION_PATH = "congregations/default/meetings";
-
-// Remove todas as propriedades 'undefined' para compatibilidade estrita com Firestore
-function sanitizeFirestoreData<T>(obj: T): any {
-  return JSON.parse(JSON.stringify(obj, (key, value) => {
-    return value === undefined ? null : value;
-  }), (key, value) => {
-    // If it was transformed to null and we prefer removing keys from objects:
-    return value;
-  });
-}
+const MEETINGS_BACKUP_COLLECTION_PATH = "congregations/default/meetings_backup";
+const LEGACY_MEETINGS_COLLECTION_PATH = "meetings";
+const LOGS_COLLECTION_PATH = "congregations/default/logs";
 
 function cleanUndefined<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
+}
+
+// Normaliza qualquer documento de reunião (incluindo versões anteriores do schema)
+export function normalizeMeetingDocument(docId: string, raw: any): CompletedMeeting | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = String(raw.id || docId || `meeting-${Date.now()}`);
+  if (id.startsWith('demo-')) return null;
+
+  const encerradaEm = raw.encerrada_em || raw.data_iso || raw.createdAt || raw.syncedAt || new Date().toISOString();
+  const iniciadaEm = raw.iniciada_em || raw.data_iso || raw.createdAt || encerradaEm;
+  const partes = Array.isArray(raw.partes)
+    ? raw.partes
+    : Array.isArray(raw.records)
+      ? raw.records
+      : Array.isArray(raw.history)
+        ? raw.history
+        : [];
+
+  const duracaoRealSegundos = typeof raw.duracao_real_segundos === 'number'
+    ? raw.duracao_real_segundos
+    : typeof raw.duracao_real_minutos === 'number'
+      ? raw.duracao_real_minutos * 60
+      : partes.reduce((acc: number, p: any) => acc + (Number(p?.actualTime) || 0), 0);
+
+  const duracaoRealMinutos = typeof raw.duracao_real_minutos === 'number'
+    ? raw.duracao_real_minutos
+    : Math.round(duracaoRealSegundos / 60);
+
+  const duracaoPlanejadaMinutos = typeof raw.duracao_planejada_minutos === 'number'
+    ? raw.duracao_planejada_minutos
+    : 105;
+
+  const saldoFinalSegundos = typeof raw.saldo_final_segundos === 'number'
+    ? raw.saldo_final_segundos
+    : typeof raw.saldo_final_minutos === 'number'
+      ? raw.saldo_final_minutos * 60
+      : 0;
+
+  const saldoFinalMinutos = typeof raw.saldo_final_minutos === 'number'
+    ? raw.saldo_final_minutos
+    : Math.round(saldoFinalSegundos / 60);
+
+  let dataCurta = raw.data_reuniao_curta;
+  if (!dataCurta && encerradaEm) {
+    const d = new Date(encerradaEm);
+    if (!isNaN(d.getTime())) {
+      const day2 = String(d.getDate()).padStart(2, '0');
+      const month2 = String(d.getMonth() + 1).padStart(2, '0');
+      const year2 = String(d.getFullYear()).slice(-2);
+      dataCurta = `${day2}/${month2}/${year2}`;
+    }
+  }
+
+  let dataFormatada = raw.data_formatada;
+  if (!dataFormatada && encerradaEm) {
+    const d = new Date(encerradaEm);
+    if (!isNaN(d.getTime())) {
+      dataFormatada = d.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      });
+    }
+  }
+
+  return {
+    id,
+    status: 'encerrada',
+    encerrada_em: encerradaEm,
+    iniciada_em: iniciadaEm,
+    data_formatada: dataFormatada || dataCurta || 'Reunião Concluída',
+    semana_apostila: raw.semana_apostila || dataFormatada || 'Programação da Semana',
+    data_reuniao_curta: dataCurta || '',
+    congregacao: raw.congregacao || 'Jardim Rosana - Ferraz de Vasconcelos SP',
+    presidente: raw.presidente || 'Presidente da Reunião',
+    tipo_semana: raw.tipo_semana === 'Visita do SC (Semana)' || raw.tipo_reuniao === 'Visita do SC (Semana)'
+      ? 'Visita do SC (Semana)'
+      : 'Normal',
+    duracao_planejada_minutos: duracaoPlanejadaMinutos,
+    duracao_real_minutos: duracaoRealMinutos,
+    duracao_real_segundos: duracaoRealSegundos,
+    saldo_final_segundos: saldoFinalSegundos,
+    saldo_final_minutos: saldoFinalMinutos,
+    indice_final_percentual: typeof raw.indice_final_percentual === 'number'
+      ? raw.indice_final_percentual
+      : Math.min(100, Math.round((duracaoRealMinutos / duracaoPlanejadaMinutos) * 100)),
+    salvo_por_email: raw.salvo_por_email || raw.user_email || undefined,
+    user_email: raw.user_email || raw.salvo_por_email || undefined,
+    partes
+  };
 }
 
 // Carregar configurações da congregação do Firebase
@@ -139,35 +222,76 @@ export function subscribeToFirebaseSettings(callback: (settings: CongregationSet
   }
 }
 
-// Carregar histórico de reuniões do Firebase
+// Carregar histórico de reuniões do Firebase (incluindo coleções de backup/legado)
 export async function fetchFirebaseMeetings(): Promise<CompletedMeeting[]> {
+  const meetingsMap = new Map<string, CompletedMeeting>();
+
+  // 1. Coleção principal
   try {
     const colRef = collection(db, MEETINGS_COLLECTION_PATH);
     const snap = await getDocs(colRef);
-    const list: CompletedMeeting[] = [];
     snap.forEach((d) => {
-      list.push(d.data() as CompletedMeeting);
+      const normalized = normalizeMeetingDocument(d.id, d.data());
+      if (normalized) {
+        meetingsMap.set(normalized.id, normalized);
+      }
     });
-    // Ordena da mais recente para a mais antiga
-    list.sort((a, b) => new Date(b.encerrada_em || b.iniciada_em || 0).getTime() - new Date(a.encerrada_em || a.iniciada_em || 0).getTime());
-    return list;
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, MEETINGS_COLLECTION_PATH);
-    return [];
   }
+
+  // 2. Coleção de backup persistente
+  try {
+    const backupRef = collection(db, MEETINGS_BACKUP_COLLECTION_PATH);
+    const backupSnap = await getDocs(backupRef);
+    backupSnap.forEach((d) => {
+      const normalized = normalizeMeetingDocument(d.id, d.data());
+      if (normalized && !meetingsMap.has(normalized.id)) {
+        meetingsMap.set(normalized.id, normalized);
+      }
+    });
+  } catch (error) {
+    // Ignore backup collection read errors
+  }
+
+  // 3. Coleção raiz legada (se existir)
+  try {
+    const legacyRef = collection(db, LEGACY_MEETINGS_COLLECTION_PATH);
+    const legacySnap = await getDocs(legacyRef);
+    legacySnap.forEach((d) => {
+      const normalized = normalizeMeetingDocument(d.id, d.data());
+      if (normalized && !meetingsMap.has(normalized.id)) {
+        meetingsMap.set(normalized.id, normalized);
+      }
+    });
+  } catch (error) {
+    // Ignore legacy collection read errors
+  }
+
+  const list = Array.from(meetingsMap.values());
+  list.sort((a, b) => new Date(b.encerrada_em || b.iniciada_em || 0).getTime() - new Date(a.encerrada_em || a.iniciada_em || 0).getTime());
+  return list;
 }
 
-// Salvar uma reunião individual no Firebase
+// Salvar uma reunião individual no Firebase (principal + backup imutável)
 export async function saveFirebaseMeeting(meeting: CompletedMeeting): Promise<void> {
+  const cleanData = cleanUndefined({
+    ...meeting,
+    syncedAt: new Date().toISOString()
+  });
+
   try {
     const docRef = doc(db, `${MEETINGS_COLLECTION_PATH}/${meeting.id}`);
-    const cleanData = cleanUndefined({
-      ...meeting,
-      syncedAt: new Date().toISOString()
-    });
     await setDoc(docRef, cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${MEETINGS_COLLECTION_PATH}/${meeting.id}`);
+  }
+
+  try {
+    const backupDocRef = doc(db, `${MEETINGS_BACKUP_COLLECTION_PATH}/${meeting.id}`);
+    await setDoc(backupDocRef, cleanData);
+  } catch (error) {
+    // Ignore backup write errors
   }
 }
 
@@ -188,7 +312,10 @@ export function subscribeToFirebaseMeetings(callback: (meetings: CompletedMeetin
     return onSnapshot(colRef, (snapshot) => {
       const list: CompletedMeeting[] = [];
       snapshot.forEach((d) => {
-        list.push(d.data() as CompletedMeeting);
+        const normalized = normalizeMeetingDocument(d.id, d.data());
+        if (normalized) {
+          list.push(normalized);
+        }
       });
       list.sort((a, b) => new Date(b.encerrada_em || b.iniciada_em || 0).getTime() - new Date(a.encerrada_em || a.iniciada_em || 0).getTime());
       callback(list);
@@ -201,7 +328,21 @@ export function subscribeToFirebaseMeetings(callback: (meetings: CompletedMeetin
   }
 }
 
-const LOGS_COLLECTION_PATH = "congregations/default/logs";
+export async function fetchFirebaseLogs(): Promise<ActionLog[]> {
+  try {
+    const colRef = collection(db, LOGS_COLLECTION_PATH);
+    const snap = await getDocs(colRef);
+    const list: ActionLog[] = [];
+    snap.forEach((d) => {
+      list.push(d.data() as ActionLog);
+    });
+    list.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+    return list;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, LOGS_COLLECTION_PATH);
+    return [];
+  }
+}
 
 export async function logAction(log: Omit<ActionLog, 'id' | 'timestamp'>) {
   try {

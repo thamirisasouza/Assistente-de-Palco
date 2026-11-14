@@ -155,7 +155,7 @@ export function parseMonthlyPdfText(fullText: string): MonthPdfParseResult {
     const lines = weekText.split('\n').map(l => cleanStr(l)).filter(Boolean);
 
     const week: ParsedWeekSchedule = {
-      id: `week-${block.date.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${idx}`, // ID único baseado na data
+      id: getCanonicalWeekId(block.date, idx),
       weekLabel: block.reading ? `${block.date} | ${block.reading}` : block.date,
       date: block.date,
       bibleReading: block.reading,
@@ -548,7 +548,7 @@ export function applyPdfWeekToMeetingParts(
 
 /**
  * Converte strings de data da apostila em objeto Date para comparação
- * Ex: "17 de agosto de 2026", "17 de agosto", "17/08/2026", etc.
+ * Ex: "17 de agosto de 2026", "16-22 de outubro de 2026", "17 de agosto", "17/08/2026", etc.
  */
 export function parseWeekStartDate(dateStr: string): Date | null {
   if (!dateStr) return null;
@@ -570,7 +570,7 @@ export function parseWeekStartDate(dateStr: string): Date | null {
   };
 
   // Formato com barras ou hífens: 17/08/2026 ou 17/08
-  const slashMatch = str.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{4}|\d{2}))?/);
+  const slashMatch = str.match(/(\d{1,2})[\/](\d{1,2})(?:[\/](\d{4}|\d{2}))?/);
   if (slashMatch) {
     const day = parseInt(slashMatch[1], 10);
     const month = parseInt(slashMatch[2], 10) - 1;
@@ -579,19 +579,148 @@ export function parseWeekStartDate(dateStr: string): Date | null {
     return new Date(year, month, day, 0, 0, 0);
   }
 
-  // Formato por extenso: "17 de agosto de 2026" ou "17 de agosto"
-  const textMatch = str.match(/(\d{1,2})\s+de\s+([a-zçãéíóúA-ZÇÃÉÍÓÚ]+)(?:\s+de\s+(\d{4}))?/i);
-  if (textMatch) {
-    const day = parseInt(textMatch[1], 10);
-    const monthName = textMatch[2].toLowerCase().trim();
+  // Extrai ano explícito caso exista em qualquer parte da string
+  const explicitYearMatch = str.match(/\b(20\d{2})\b/);
+  const fallbackYear = explicitYearMatch ? parseInt(explicitYearMatch[1], 10) : new Date().getFullYear();
+
+  // Formato por extenso (incluindo intervalos como "16-22 de outubro de 2026" ou "17 de agosto de 2026")
+  const rangeOrTextMatch = str.match(/(\d{1,2})(?:\s*(?:[-–a]\s*\d{1,2}))?\s+de\s+([a-zçãéíóúA-ZÇÃÉÍÓÚ]+)(?:\s+de\s+(\d{4}))?/i);
+  if (rangeOrTextMatch) {
+    const day = parseInt(rangeOrTextMatch[1], 10);
+    const monthName = rangeOrTextMatch[2].toLowerCase().trim();
     const month = ptMonths[monthName] ?? -1;
-    const year = textMatch[3] ? parseInt(textMatch[3], 10) : new Date().getFullYear();
+    const year = rangeOrTextMatch[3] ? parseInt(rangeOrTextMatch[3], 10) : fallbackYear;
     if (month !== -1) {
       return new Date(year, month, day, 0, 0, 0);
     }
   }
 
   return null;
+}
+
+/**
+ * Gera um ID único e determinístico para cada semana baseado na sua data de início
+ */
+export function getCanonicalWeekId(dateStr: string, fallbackIdx = 0): string {
+  const parsed = parseWeekStartDate(dateStr);
+  if (parsed && !isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `week-${y}-${m}-${d}`;
+  }
+  const clean = (dateStr || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  return clean ? `week-${clean}` : `week-custom-${fallbackIdx}`;
+}
+
+const PT_MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+export interface MonthWeekGroup {
+  monthKey: string;       // Ex: "2026-08"
+  monthLabel: string;     // Ex: "Agosto de 2026"
+  shortMonthLabel: string;// Ex: "Agosto"
+  year: number;
+  month: number;          // 0-11
+  weeks: ParsedWeekSchedule[];
+}
+
+export function getWeekMonthInfo(week: ParsedWeekSchedule): {
+  monthKey: string;
+  monthLabel: string;
+  shortMonthLabel: string;
+  year: number;
+  month: number;
+  startTime: number;
+} {
+  const startDate = parseWeekStartDate(week.date);
+  if (startDate && !isNaN(startDate.getTime())) {
+    const year = startDate.getFullYear();
+    const month = startDate.getMonth();
+    const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+    const shortMonthLabel = PT_MONTH_NAMES[month] || 'Mês';
+    return {
+      monthKey,
+      monthLabel: `${shortMonthLabel} de ${year}`,
+      shortMonthLabel,
+      year,
+      month,
+      startTime: startDate.getTime()
+    };
+  }
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const shortMonthLabel = PT_MONTH_NAMES[month];
+  return {
+    monthKey: `${year}-${String(month + 1).padStart(2, '0')}`,
+    monthLabel: `${shortMonthLabel} de ${year}`,
+    shortMonthLabel,
+    year,
+    month,
+    startTime: now.getTime()
+  };
+}
+
+/**
+ * Mescla semanas antigas e novas sem duplicatas e ordena cronologicamente
+ */
+export function mergeWeekSchedules(
+  existingWeeks: ParsedWeekSchedule[] = [],
+  newWeeks: ParsedWeekSchedule[] = []
+): ParsedWeekSchedule[] {
+  const map = new Map<string, ParsedWeekSchedule>();
+
+  existingWeeks.forEach((w, idx) => {
+    if (!w) return;
+    const canonicalId = getCanonicalWeekId(w.date, idx);
+    map.set(canonicalId, { ...w, id: canonicalId });
+  });
+
+  newWeeks.forEach((w, idx) => {
+    if (!w) return;
+    const canonicalId = getCanonicalWeekId(w.date, idx);
+    map.set(canonicalId, { ...w, id: canonicalId });
+  });
+
+  const merged = Array.from(map.values());
+  merged.sort((a, b) => getWeekMonthInfo(a).startTime - getWeekMonthInfo(b).startTime);
+  return merged;
+}
+
+/**
+ * Agrupa uma lista de semanas por Mês/Ano em ordem cronológica
+ */
+export function groupWeeksByMonth(weeks: ParsedWeekSchedule[] = []): MonthWeekGroup[] {
+  if (!weeks || weeks.length === 0) return [];
+
+  const normalizedWeeks = mergeWeekSchedules([], weeks);
+  const groupsMap = new Map<string, MonthWeekGroup>();
+
+  normalizedWeeks.forEach((week) => {
+    const info = getWeekMonthInfo(week);
+    if (!groupsMap.has(info.monthKey)) {
+      groupsMap.set(info.monthKey, {
+        monthKey: info.monthKey,
+        monthLabel: info.monthLabel,
+        shortMonthLabel: info.shortMonthLabel,
+        year: info.year,
+        month: info.month,
+        weeks: []
+      });
+    }
+    groupsMap.get(info.monthKey)!.weeks.push(week);
+  });
+
+  return Array.from(groupsMap.values()).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
 }
 
 /**

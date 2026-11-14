@@ -12,6 +12,7 @@ export interface ActionLog {
   timestamp: string;
   userEmail?: string;
   details?: string;
+  meetingSnapshot?: CompletedMeeting;
 }
 
 export interface Brother {

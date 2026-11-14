@@ -1,21 +1,27 @@
-import React, { useState, useMemo } from 'react';
-import { MeetingState, MeetingPart, CongregationSettings, Role, Brother, WeekType, TOTAL_PLANNED_MEETING_MINUTES, CompletedMeeting } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { MeetingState, MeetingPart, CongregationSettings, Role, Brother, WeekType, TOTAL_PLANNED_MEETING_MINUTES, CompletedMeeting, ActionLog } from '../types';
 import { 
-  Play, Plus, Trash2, Clock, Users, Calendar, Building2, Edit2, X, Check, 
-  FileText, CheckCircle2, AlertCircle, Sparkles, BookOpen, CalendarX, 
-  UserPlus, ClipboardPaste, ChevronDown, ChevronUp, ChevronRight, BarChart3,
-  Cloud, RefreshCw, Search, Save, Settings as SettingsIcon, ShieldCheck, Download, Share2,
-  Layers, ArrowRight
+  Plus, Trash2, Clock, Users, Calendar, Building2, Edit2, X, Check, 
+  FileText, CheckCircle2, CalendarX, 
+  UserPlus, ClipboardPaste, ChevronLeft, ChevronRight,
+  Cloud, RefreshCw, Search, Save, Settings as SettingsIcon, Download,
+  ArrowRight, RotateCcw, ShieldCheck
 } from 'lucide-react';
 import { cn, addMinutesToTime, formatBalanceDisplay, getBalanceColorClass } from '../lib/utils';
 import { ImportApostilaModal } from './ImportApostilaModal';
 import { BatchBrothersModal } from './BatchBrothersModal';
-import { groupPartsBySection, SECTIONS } from '../lib/sectionColors';
+import { groupPartsBySection } from '../lib/sectionColors';
 import { AnalyticsCharts } from './AnalyticsCharts';
 import { exportMeetingToPdf } from '../lib/pdfExporter';
 import { NavTab } from './BottomNavigation';
 import { ActionLogs } from './ActionLogs';
-import { MonthPdfParseResult, findMatchingWeekForDate } from '../lib/apostilaParser';
+import { 
+  MonthPdfParseResult, 
+  findMatchingWeekForDate, 
+  groupWeeksByMonth, 
+  getWeekMonthInfo,
+  ParsedWeekSchedule 
+} from '../lib/apostilaParser';
 
 interface SetupProps {
   state: MeetingState;
@@ -36,19 +42,23 @@ interface SetupProps {
   onViewArchive: () => void;
   onViewArchivedMeeting?: (meeting: CompletedMeeting) => void;
   onDeleteMeeting?: (id: string) => void;
+  onRestoreLog?: (log: ActionLog) => void;
+  onRecoverMissingHistory?: () => Promise<number>;
   onApplyMonthSchedule?: (result: MonthPdfParseResult) => void;
   onSelectWeek?: (weekId: string) => void;
+  onRemoveMonthFromSchedule?: (monthKey: string) => void;
   onClearMonthlySchedule?: () => void;
   isImportModalOpen?: boolean;
   onSetIsImportModalOpen?: (open: boolean) => void;
 }
 
 export function Setup({ 
-  state, settings, archivedCount, archivedMeetings, firebaseStatus = 'synced', 
-  activeTab = 'programacao', onTabChange, onUpdatePart, onApplyAllParts, onStart, 
+  state, settings, archivedMeetings,
+  activeTab = 'programacao', onTabChange, onUpdatePart, onApplyAllParts,
   onUpdateSettings, onUpdateBrother, onAddBrother, onAddBrothersBatch, onRemoveBrother, 
   onViewArchive, onViewArchivedMeeting, onDeleteMeeting,
-  onApplyMonthSchedule, onSelectWeek, onClearMonthlySchedule,
+  onRestoreLog, onRecoverMissingHistory,
+  onApplyMonthSchedule, onSelectWeek, onRemoveMonthFromSchedule, onClearMonthlySchedule,
   isImportModalOpen: controlledImportModalOpen,
   onSetIsImportModalOpen
 }: SetupProps) {
@@ -57,14 +67,23 @@ export function Setup({
   const setIsImportModalOpen = onSetIsImportModalOpen || setInternalImportModalOpen;
 
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-  const [isPdfSectionOpen, setIsPdfSectionOpen] = useState(false);
+  const [showConfirmClearSchedule, setShowConfirmClearSchedule] = useState(false);
+  const [confirmDeleteMeetingId, setConfirmDeleteMeetingId] = useState<string | null>(null);
 
+  // Estados para adição e busca de irmãos
   const [newBrotherName, setNewBrotherName] = useState('');
   const [newBrotherRole, setNewBrotherRole] = useState<Role>('Publicador');
   const [brotherSearch, setBrotherSearch] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
+  // Estados para edição de nome e privilégio do irmão
+  const [editingBrotherId, setEditingBrotherId] = useState<string | null>(null);
+  const [editingBrotherName, setEditingBrotherName] = useState('');
+  const [editingBrotherRole, setEditingBrotherRole] = useState<Role>('Publicador');
+
   const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+  const [isRecoveringHistory, setIsRecoveringHistory] = useState(false);
+  const [recoveryFeedback, setRecoveryFeedback] = useState<string | null>(null);
 
   const handleSaveSettings = () => {
     setIsSavingSettings(true);
@@ -75,9 +94,6 @@ export function Setup({
 
   const [importedWeekLabel, setImportedWeekLabel] = useState<string | null>(null);
 
-  const totalPlannedMinutes = state.parts.reduce((sum, p) => sum + p.plannedTime + (p.hasCounsel ? 1 : 0), 0);
-  const is105Standard = totalPlannedMinutes === TOTAL_PLANNED_MEETING_MINUTES;
-  
   // Calcula horários previstos de cada parte em ordem sequencial
   const partStartTimes: string[] = [];
   let runningTime = settings.defaultTime || "19:30";
@@ -107,6 +123,26 @@ export function Setup({
     }
   };
 
+  const handleStartEditBrother = (brother: Brother) => {
+    setEditingBrotherId(brother.id);
+    setEditingBrotherName(brother.name);
+    setEditingBrotherRole(brother.role);
+  };
+
+  const handleSaveEditBrother = (id: string) => {
+    const trimmed = editingBrotherName.trim();
+    if (trimmed) {
+      onUpdateBrother(id, { name: trimmed, role: editingBrotherRole });
+    }
+    setEditingBrotherId(null);
+    setEditingBrotherName('');
+  };
+
+  const handleCancelEditBrother = () => {
+    setEditingBrotherId(null);
+    setEditingBrotherName('');
+  };
+
   const handleExportMeetingPdf = (m: CompletedMeeting) => {
     setDownloadingPdfId(m.id);
     try {
@@ -118,10 +154,94 @@ export function Setup({
     }
   };
 
+  const handleRecoverHistoryClick = async () => {
+    if (!onRecoverMissingHistory) return;
+    setIsRecoveringHistory(true);
+    setRecoveryFeedback(null);
+    try {
+      const total = await onRecoverMissingHistory();
+      setRecoveryFeedback(`Histórico sincronizado (${total} ${total === 1 ? 'reunião' : 'reuniões'} disponíveis)`);
+      setTimeout(() => setRecoveryFeedback(null), 3500);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsRecoveringHistory(false);
+    }
+  };
+
+  // Agrupamento das semanas do PDF por Mês em ordem cronológica
+  const monthGroups = useMemo(() => {
+    if (!settings.monthlySchedule?.weeks || settings.monthlySchedule.weeks.length === 0) return [];
+    return groupWeeksByMonth(settings.monthlySchedule.weeks);
+  }, [settings.monthlySchedule]);
+
+  // Semana vigente (correspondente à data de hoje)
   const currentMatchingWeek = useMemo(() => {
     if (!settings.monthlySchedule?.weeks || settings.monthlySchedule.weeks.length === 0) return null;
-    return findMatchingWeekForDate(settings.monthlySchedule.weeks);
+    return findMatchingWeekForDate(settings.monthlySchedule.weeks, new Date());
   }, [settings.monthlySchedule]);
+
+  // Mês correspondente à semana vigente de hoje
+  const currentDateMonthKey = useMemo(() => {
+    if (currentMatchingWeek) {
+      return getWeekMonthInfo(currentMatchingWeek).monthKey;
+    }
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }, [currentMatchingWeek]);
+
+  // Controle do mês visível no seletor de meses
+  const [activeMonthKey, setActiveMonthKey] = useState<string | null>(null);
+
+  // Sincroniza automaticamente a aba de mês quando a semana selecionada (ou semana vigente) muda
+  useEffect(() => {
+    if (monthGroups.length === 0) {
+      setActiveMonthKey(null);
+      return;
+    }
+
+    const allWeeks: ParsedWeekSchedule[] = settings.monthlySchedule?.weeks || [];
+    const selectedWeek = allWeeks.find(w => w.id === settings.selectedWeekId) || currentMatchingWeek || allWeeks[0];
+
+    if (selectedWeek) {
+      const targetMonthKey = getWeekMonthInfo(selectedWeek).monthKey;
+      setActiveMonthKey(targetMonthKey);
+    } else if (!activeMonthKey || !monthGroups.some(g => g.monthKey === activeMonthKey)) {
+      setActiveMonthKey(monthGroups[0].monthKey);
+    }
+  }, [settings.selectedWeekId, currentMatchingWeek?.id, monthGroups.length]);
+
+  const activeMonthIndex = useMemo(() => {
+    if (monthGroups.length === 0) return 0;
+    const idx = monthGroups.findIndex(g => g.monthKey === activeMonthKey);
+    return idx >= 0 ? idx : 0;
+  }, [monthGroups, activeMonthKey]);
+
+  const activeMonthGroup = monthGroups[activeMonthIndex] || null;
+
+  const handlePrevMonth = () => {
+    if (activeMonthIndex > 0) {
+      const prevGroup = monthGroups[activeMonthIndex - 1];
+      setActiveMonthKey(prevGroup.monthKey);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (activeMonthIndex < monthGroups.length - 1) {
+      const nextGroup = monthGroups[activeMonthIndex + 1];
+      setActiveMonthKey(nextGroup.monthKey);
+    }
+  };
+
+  const handleGoToCurrentMonthAndWeek = () => {
+    if (currentMatchingWeek) {
+      const targetMonthKey = getWeekMonthInfo(currentMatchingWeek).monthKey;
+      setActiveMonthKey(targetMonthKey);
+      if (onSelectWeek) {
+        onSelectWeek(currentMatchingWeek.id);
+      }
+    }
+  };
 
   const weekDisplay = importedWeekLabel || state.importedWeekLabel || settings.importedWeekLabel || 'Programação da Semana';
 
@@ -138,7 +258,7 @@ export function Setup({
         {activeTab === 'programacao' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             
-            {/* Card Principal: Resumo da Reunião e Seletor de Semanas (Unificado) */}
+            {/* Card Principal: Resumo da Reunião e Seletor de Semanas por Mês */}
             <div className="bg-white dark:bg-[#1E293B] rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3.5">
               {/* Cabeçalho do Card */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -152,9 +272,9 @@ export function Setup({
                         Visita do SC
                       </span>
                     )}
-                    {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 && (
+                    {monthGroups.length > 0 && (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 font-mono">
-                        Escala: {settings.monthlySchedule.weeks.length} semanas
+                        {monthGroups.length} {monthGroups.length === 1 ? 'mês' : 'meses'} • {settings.monthlySchedule?.weeks?.length || 0} semanas
                       </span>
                     )}
                   </div>
@@ -176,16 +296,12 @@ export function Setup({
                     Importar PDF
                   </button>
 
-                  {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 && onClearMonthlySchedule && (
+                  {monthGroups.length > 0 && onClearMonthlySchedule && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm("Deseja remover a escala mensal salva deste arquivo?")) {
-                          onClearMonthlySchedule();
-                        }
-                      }}
+                      onClick={() => setShowConfirmClearSchedule(prev => !prev)}
                       className="p-2 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer border border-transparent hover:border-red-200"
-                      title="Excluir arquivo de escala mensal"
+                      title="Gerenciar / remover escala mensal de PDF"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -193,11 +309,142 @@ export function Setup({
                 </div>
               </div>
 
-              {/* Seletor de Semanas do Mês (quando houver escala importada) */}
-              {settings.monthlySchedule?.weeks && settings.monthlySchedule.weeks.length > 0 && (
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {settings.monthlySchedule.weeks.map((week) => {
+              {/* Confirmação inline para excluir escala do mês ou todas (sem afetar o histórico) */}
+              {showConfirmClearSchedule && activeMonthGroup && (
+                <div className="p-3 rounded-2xl bg-red-50/80 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 space-y-2 animate-in fade-in duration-200">
+                  <p className="text-xs font-semibold text-red-800 dark:text-red-200">
+                    Deseja remover a escala de PDF? (O histórico de reuniões realizadas permanecerá salvo).
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {monthGroups.length > 1 && onRemoveMonthFromSchedule && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onRemoveMonthFromSchedule(activeMonthGroup.monthKey);
+                          setShowConfirmClearSchedule(false);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold cursor-pointer"
+                      >
+                        Remover apenas {activeMonthGroup.monthLabel}
+                      </button>
+                    )}
+                    {onClearMonthlySchedule && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClearMonthlySchedule();
+                          setShowConfirmClearSchedule(false);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-red-700 hover:bg-red-600 text-white text-xs font-bold cursor-pointer"
+                      >
+                        Remover todos os PDFs
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmClearSchedule(false)}
+                      className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-700 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Seletor de Semanas Organizado por Mês com Setas (Anterior / Atual / Próximo) */}
+              {activeMonthGroup && (
+                <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 space-y-2.5">
+                  
+                  {/* Barra de Navegação de Meses */}
+                  <div className="flex items-center justify-between gap-2 bg-slate-50 dark:bg-[#0F172A] px-2.5 py-2 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={handlePrevMonth}
+                      disabled={activeMonthIndex <= 0}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-[#1E293B] disabled:opacity-35 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+                      title="Ver mês anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4 text-[#295E9F] dark:text-[#4A6CA7]" />
+                      <span className="hidden xs:inline">
+                        {activeMonthIndex > 0 ? monthGroups[activeMonthIndex - 1].shortMonthLabel : 'Anterior'}
+                      </span>
+                    </button>
+
+                    <div className="flex items-center gap-1.5 flex-wrap justify-center text-center">
+                      <Calendar className="w-3.5 h-3.5 text-[#295E9F] dark:text-[#4A6CA7] shrink-0" />
+                      <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight">
+                        {activeMonthGroup.monthLabel}
+                      </span>
+
+                      {activeMonthGroup.monthKey === currentDateMonthKey ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                          Mês Atual
+                        </span>
+                      ) : (
+                        currentMatchingWeek && (
+                          <button
+                            type="button"
+                            onClick={handleGoToCurrentMonthAndWeek}
+                            className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#295E9F]/15 text-[#295E9F] dark:text-sky-300 hover:bg-[#295E9F] hover:text-white transition-colors cursor-pointer"
+                            title="Voltar para o mês e semana vigente"
+                          >
+                            Ir para Mês Atual
+                          </button>
+                        )
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleNextMonth}
+                      disabled={activeMonthIndex >= monthGroups.length - 1}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-[#1E293B] disabled:opacity-35 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+                      title="Ver próximo mês"
+                    >
+                      <span className="hidden xs:inline">
+                        {activeMonthIndex < monthGroups.length - 1 ? monthGroups[activeMonthIndex + 1].shortMonthLabel : 'Próximo'}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-[#295E9F] dark:text-[#4A6CA7]" />
+                    </button>
+                  </div>
+
+                  {/* Atalho de Meses quando houver mais de 1 mês carregado */}
+                  {monthGroups.length > 1 && (
+                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                      {monthGroups.map((group) => {
+                        const isActiveMonth = group.monthKey === activeMonthGroup.monthKey;
+                        const isCurrentMonth = group.monthKey === currentDateMonthKey;
+                        return (
+                          <button
+                            key={group.monthKey}
+                            type="button"
+                            onClick={() => setActiveMonthKey(group.monthKey)}
+                            className={cn(
+                              "px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1",
+                              isActiveMonth
+                                ? "bg-[#295E9F] text-white shadow-xs"
+                                : "bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                            )}
+                          >
+                            <span>{group.shortMonthLabel}</span>
+                            {isCurrentMonth && (
+                              <span className={cn(
+                                "w-1.5 h-1.5 rounded-full",
+                                isActiveMonth ? "bg-emerald-300" : "bg-emerald-500"
+                              )} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Semanas do Mês Selecionado */}
+                  <div className={cn(
+                    "grid gap-2",
+                    activeMonthGroup.weeks.length >= 5 ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4"
+                  )}>
+                    {activeMonthGroup.weeks.map((week) => {
                       const isSelected = (settings.selectedWeekId === week.id) || (!settings.selectedWeekId && week.id === (currentMatchingWeek?.id || settings.monthlySchedule?.weeks[0]?.id));
                       const isCurrentDateWeek = currentMatchingWeek?.id === week.id;
 
@@ -207,7 +454,7 @@ export function Setup({
                           type="button"
                           onClick={() => onSelectWeek && onSelectWeek(week.id)}
                           className={cn(
-                            "p-2 rounded-2xl border text-left transition-all relative flex flex-col justify-between cursor-pointer",
+                            "p-2.5 rounded-2xl border text-left transition-all relative flex flex-col justify-between cursor-pointer",
                             isSelected 
                               ? "bg-[#295E9F] text-white border-[#295E9F] shadow-sm shadow-[#295E9F]/20 ring-2 ring-[#295E9F]/30" 
                               : "bg-slate-50 dark:bg-[#0F172A] border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-sky-300"
@@ -225,7 +472,7 @@ export function Setup({
                                 "text-[9px] px-1.5 py-0.2 rounded-md font-bold shrink-0",
                                 isSelected ? "bg-emerald-400 text-emerald-950" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
                               )}>
-                                Hoje
+                                Vigente
                               </span>
                             )}
                           </div>
@@ -441,7 +688,7 @@ export function Setup({
         )}
 
         {/* ========================================================= */}
-        {/* ABA 2: PUBLICADORES (IRMÃOS) */}
+        {/* ABA 2: PUBLICADORES (IRMÃOS) COM EDIÇÃO DE NOME */}
         {/* ========================================================= */}
         {activeTab === 'publicadores' && (
           <div className="space-y-4 animate-in fade-in duration-300">
@@ -453,7 +700,7 @@ export function Setup({
                     Irmãos e Publicadores
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {settings.brothers.length} irmãos cadastrados na congregação
+                    {settings.brothers.length} irmãos cadastrados na congregação • Clique no lápis para editar o nome
                   </p>
                 </div>
 
@@ -514,49 +761,114 @@ export function Setup({
                   />
                 </div>
 
-                <div className="divide-y divide-slate-100 dark:divide-slate-800/80 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/80 max-h-[440px] overflow-y-auto pr-1 custom-scrollbar">
                   {filteredBrothers.length === 0 ? (
                     <div className="text-center py-8 text-slate-400 text-xs">
                       {brotherSearch ? "Nenhum irmão encontrado." : "Nenhum irmão cadastrado ainda."}
                     </div>
                   ) : (
-                    filteredBrothers.map((b) => (
-                      <div key={b.id} className="py-2.5 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-8 h-8 rounded-full bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] flex items-center justify-center font-bold text-xs shrink-0">
-                            {b.name.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs font-bold text-slate-900 dark:text-white block truncate">
-                              {b.name}
-                            </span>
-                            <span className="text-[10px] text-slate-400 block font-medium">
-                              {b.role}
-                            </span>
-                          </div>
-                        </div>
+                    filteredBrothers.map((b) => {
+                      const isEditing = editingBrotherId === b.id;
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => {
-                              const nextRole: Role = b.role === 'Publicador' ? 'Servo Ministerial' : b.role === 'Servo Ministerial' ? 'Ancião' : 'Publicador';
-                              onUpdateBrother(b.id, { role: nextRole });
-                            }}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
-                            title="Alterar privilégio"
-                          >
-                            {b.role}
-                          </button>
-                          <button
-                            onClick={() => onRemoveBrother(b.id)}
-                            className="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 flex items-center justify-center cursor-pointer"
-                            title="Remover irmão"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                      return (
+                        <div key={b.id} className="py-2.5 flex items-center justify-between gap-2">
+                          {isEditing ? (
+                            <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-50 dark:bg-[#0F172A] p-2 rounded-xl border border-[#295E9F]/40">
+                              <input
+                                type="text"
+                                value={editingBrotherName}
+                                onChange={(e) => setEditingBrotherName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveEditBrother(b.id);
+                                  if (e.key === 'Escape') handleCancelEditBrother();
+                                }}
+                                autoFocus
+                                placeholder="Nome do irmão..."
+                                className="flex-1 bg-white dark:bg-[#1E293B] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:border-[#295E9F]"
+                              />
+                              <div className="flex items-center gap-1.5 justify-end">
+                                <select
+                                  value={editingBrotherRole}
+                                  onChange={(e) => setEditingBrotherRole(e.target.value as Role)}
+                                  className="bg-white dark:bg-[#1E293B] border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold outline-none"
+                                >
+                                  <option value="Publicador">Publicador</option>
+                                  <option value="Servo Ministerial">Servo Ministerial</option>
+                                  <option value="Ancião">Ancião</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveEditBrother(b.id)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                  title="Salvar alterações"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  Salvar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditBrother}
+                                  className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
+                                  title="Cancelar"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-8 h-8 rounded-full bg-[#295E9F]/10 text-[#295E9F] dark:text-[#4A6CA7] flex items-center justify-center font-bold text-xs shrink-0">
+                                  {b.name.charAt(0)}
+                                </div>
+                                <div className="min-w-0">
+                                  <span 
+                                    onClick={() => handleStartEditBrother(b)}
+                                    className="text-xs font-bold text-slate-900 dark:text-white block truncate hover:text-[#295E9F] dark:hover:text-[#4A6CA7] cursor-pointer"
+                                    title="Clique para editar o nome"
+                                  >
+                                    {b.name}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 block font-medium">
+                                    {b.role}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditBrother(b)}
+                                  className="w-7 h-7 rounded-lg text-slate-400 hover:text-[#295E9F] dark:hover:text-[#4A6CA7] hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center cursor-pointer transition-colors"
+                                  title="Editar nome do irmão"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextRole: Role = b.role === 'Publicador' ? 'Servo Ministerial' : b.role === 'Servo Ministerial' ? 'Ancião' : 'Publicador';
+                                    onUpdateBrother(b.id, { role: nextRole });
+                                  }}
+                                  className="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
+                                  title="Alterar privilégio"
+                                >
+                                  {b.role}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onRemoveBrother(b.id)}
+                                  className="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 flex items-center justify-center cursor-pointer"
+                                  title="Remover irmão"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -642,31 +954,67 @@ export function Setup({
         )}
 
         {/* ========================================================= */}
-        {/* ABA 4: HISTÓRICO DE REUNIÕES */}
+        {/* ABA 4: HISTÓRICO DE REUNIÕES (PERSISTENTE E INDEPENDENTE) */}
         {/* ========================================================= */}
         {activeTab === 'historico' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             <div className="bg-white dark:bg-[#1E293B] rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-[#295E9F]" />
-                  Histórico de Reuniões Gravadas
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {archivedMeetings.length} reuniões salvas no histórico
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-[#295E9F]" />
+                    Histórico de Reuniões Gravadas
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                    <span>{archivedMeetings.length} {archivedMeetings.length === 1 ? 'reunião salva' : 'reuniões salvas'} permanentemente</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                      <ShieldCheck className="w-3 h-3" /> Persistente (independente de PDFs)
+                    </span>
+                  </p>
+                </div>
+
+                {onRecoverMissingHistory && (
+                  <button
+                    type="button"
+                    onClick={handleRecoverHistoryClick}
+                    disabled={isRecoveringHistory}
+                    className="px-3.5 py-2 rounded-2xl bg-[#295E9F]/10 hover:bg-[#295E9F]/20 text-[#295E9F] dark:text-[#4A6CA7] border border-[#295E9F]/20 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer self-start sm:self-auto"
+                    title="Recuperar históricos de reuniões a partir da nuvem e logs"
+                  >
+                    <RotateCcw className={cn("w-3.5 h-3.5", isRecoveringHistory && "animate-spin")} />
+                    {isRecoveringHistory ? "Recuperando..." : "Recuperar / Sincronizar"}
+                  </button>
+                )}
               </div>
 
+              {recoveryFeedback && (
+                <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{recoveryFeedback}</span>
+                </div>
+              )}
+
               {archivedMeetings.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 space-y-2">
+                <div className="text-center py-12 text-slate-400 space-y-3">
                   <FileText className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
-                  <p className="text-xs">Nenhuma reunião concluída ainda.</p>
+                  <p className="text-xs">Nenhuma reunião encontrada no momento.</p>
+                  {onRecoverMissingHistory && (
+                    <button
+                      type="button"
+                      onClick={handleRecoverHistoryClick}
+                      className="px-4 py-2 rounded-xl bg-[#295E9F] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Buscar e Recuperar Históricos
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
                   {archivedMeetings.map((m) => {
                     const balanceColors = getBalanceColorClass(m.saldo_final_segundos);
                     const isDownloading = downloadingPdfId === m.id;
+                    const isConfirmingDelete = confirmDeleteMeetingId === m.id;
 
                     return (
                       <div key={m.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors rounded-2xl px-2">
@@ -689,7 +1037,7 @@ export function Setup({
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
                           <button
                             onClick={() => handleExportMeetingPdf(m)}
                             disabled={isDownloading}
@@ -710,17 +1058,35 @@ export function Setup({
                           )}
 
                           {onDeleteMeeting && (
-                            <button
-                              onClick={() => {
-                                if (window.confirm("Deseja realmente excluir esta reunião do histórico?")) {
-                                onDeleteMeeting(m.id);
-                                }
-                              }}
-                              className="w-8 h-8 rounded-xl text-slate-400 hover:text-red-500 flex items-center justify-center cursor-pointer"
-                              title="Excluir do histórico"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            isConfirmingDelete ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onDeleteMeeting(m.id);
+                                    setConfirmDeleteMeetingId(null);
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-xl bg-red-600 text-white text-xs font-bold cursor-pointer"
+                                >
+                                  Confirmar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteMeetingId(null)}
+                                  className="p-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDeleteMeetingId(m.id)}
+                                className="w-8 h-8 rounded-xl text-slate-400 hover:text-red-500 flex items-center justify-center cursor-pointer"
+                                title="Excluir do histórico"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )
                           )}
                         </div>
                       </div>
@@ -750,7 +1116,10 @@ export function Setup({
         {/* ========================================================= */}
         {activeTab === 'log' && (
           <div className="space-y-4 animate-in fade-in duration-300">
-            <ActionLogs />
+            <ActionLogs 
+              archivedMeetings={archivedMeetings}
+              onRestoreLog={onRestoreLog}
+            />
           </div>
         )}
 
@@ -795,4 +1164,3 @@ export function Setup({
     </div>
   );
 }
-
