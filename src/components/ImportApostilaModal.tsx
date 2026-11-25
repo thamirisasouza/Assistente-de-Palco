@@ -90,8 +90,6 @@ export function ImportApostilaModal({
     }
   }, [parseResult, selectedWeekId, currentMatchingWeek, activeMonthKey, monthGroups]);
 
-  if (!isOpen) return null;
-
   const activeMonthIndex = useMemo(() => {
     if (!monthGroups.length) return 0;
     const idx = monthGroups.findIndex(g => g.monthKey === activeMonthKey);
@@ -99,6 +97,8 @@ export function ImportApostilaModal({
   }, [monthGroups, activeMonthKey]);
 
   const activeMonthGroup = monthGroups[activeMonthIndex] || null;
+
+  if (!isOpen) return null;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
