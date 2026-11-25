@@ -408,37 +408,6 @@ export function Setup({
                     </button>
                   </div>
 
-                  {/* Atalho de Meses quando houver mais de 1 mês carregado */}
-                  {monthGroups.length > 1 && (
-                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                      {monthGroups.map((group) => {
-                        const isActiveMonth = group.monthKey === activeMonthGroup.monthKey;
-                        const isCurrentMonth = group.monthKey === currentDateMonthKey;
-                        return (
-                          <button
-                            key={group.monthKey}
-                            type="button"
-                            onClick={() => setActiveMonthKey(group.monthKey)}
-                            className={cn(
-                              "px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1",
-                              isActiveMonth
-                                ? "bg-[#295E9F] text-white shadow-xs"
-                                : "bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                            )}
-                          >
-                            <span>{group.shortMonthLabel}</span>
-                            {isCurrentMonth && (
-                              <span className={cn(
-                                "w-1.5 h-1.5 rounded-full",
-                                isActiveMonth ? "bg-emerald-300" : "bg-emerald-500"
-                              )} />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
                   {/* Semanas do Mês Selecionado */}
                   <div className={cn(
                     "grid gap-2",
