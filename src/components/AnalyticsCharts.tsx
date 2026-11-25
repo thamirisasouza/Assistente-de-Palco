@@ -232,9 +232,9 @@ export function AnalyticsCharts({
               </div>
             </div>
 
-            {/* Botões rápidos de Filtro por Categoria */}
+            {/* Botões rápidos de Filtro por Categoria (ocultos no mobile) e Filtro de Padrões */}
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
                 {(['Todos', 'Ancião', 'Servo Ministerial', 'Publicador'] as const).map((cat) => {
                   const isActive = roleFilter === cat;
                   const count = cat === 'Todos'
@@ -267,7 +267,7 @@ export function AnalyticsCharts({
               <select
                 value={trendFilter}
                 onChange={(e) => setTrendFilter(e.target.value as 'Todos' | SpeakerPunctualityTrend)}
-                className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:border-[#295E9F] outline-none cursor-pointer"
+                className="w-full sm:w-auto bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 sm:py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:border-[#295E9F] outline-none cursor-pointer"
               >
                 <option value="Todos">Todos os Padrões</option>
                 <option value="pontual">Pontual</option>
