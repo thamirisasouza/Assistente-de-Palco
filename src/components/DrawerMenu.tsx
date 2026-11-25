@@ -150,7 +150,7 @@ export function DrawerMenu({
               <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 group-hover:bg-[#295E9F]/10 group-hover:text-[#295E9F] flex items-center justify-center transition-colors">
                 <Users className="w-4 h-4" />
               </div>
-              <span className="text-sm font-semibold">Publicadores & Designações</span>
+              <span className="text-sm font-semibold">Membros</span>
             </div>
             <ChevronRight className="w-4 h-4 text-slate-400" />
           </button>

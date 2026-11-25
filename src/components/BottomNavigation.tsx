@@ -58,7 +58,7 @@ export function BottomNavigation({
           )}>
             <Users className="w-5 h-5" />
           </div>
-          <span className="text-[11px]">Irmãos</span>
+          <span className="text-[11px]">Membros</span>
         </button>
 
         {/* Botão Central Destacado: Iniciar Reunião (Estilo FAB flutuante circular) */}

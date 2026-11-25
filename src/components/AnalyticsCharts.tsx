@@ -192,7 +192,7 @@ export function AnalyticsCharts({
 
           {/* COMPARAÇÃO POR PUBLICADORES (IRMÃOS DESIGNADOS) */}
           <section className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Users className="w-5 h-5 text-[#295E9F] dark:text-[#4A6CA7]" />
@@ -203,9 +203,23 @@ export function AnalyticsCharts({
                 </p>
               </div>
 
-              {/* Filtros para oradores */}
-              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                <div className="relative w-full sm:w-48">
+              {/* Busca e Filtro por Categorias */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <div className="relative w-full sm:w-44">
+                  <Filter className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value as 'Todos' | Role)}
+                    className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:border-[#295E9F] focus:ring-1 focus:ring-[#295E9F] outline-none cursor-pointer"
+                  >
+                    <option value="Todos">Todas as Categorias</option>
+                    <option value="Ancião">Ancião</option>
+                    <option value="Servo Ministerial">Servo Ministerial</option>
+                    <option value="Publicador">Publicador</option>
+                  </select>
+                </div>
+
+                <div className="relative w-full sm:w-44">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input 
                     type="text" 
@@ -216,6 +230,51 @@ export function AnalyticsCharts({
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Botões rápidos de Filtro por Categoria */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(['Todos', 'Ancião', 'Servo Ministerial', 'Publicador'] as const).map((cat) => {
+                  const isActive = roleFilter === cat;
+                  const count = cat === 'Todos'
+                    ? analytics.speakers.length
+                    : analytics.speakers.filter(s => s.role === cat).length;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setRoleFilter(cat)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border",
+                        isActive
+                          ? "bg-[#295E9F] text-white border-[#295E9F] shadow-xs"
+                          : "bg-slate-50 dark:bg-[#0F172A] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-[#295E9F]/50"
+                      )}
+                    >
+                      <span>{cat === 'Todos' ? 'Todos' : cat}</span>
+                      <span className={cn(
+                        "px-1.5 py-0.2 rounded-full text-[10px] font-mono",
+                        isActive ? "bg-white/20 text-white" : "bg-slate-200/70 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                      )}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <select
+                value={trendFilter}
+                onChange={(e) => setTrendFilter(e.target.value as 'Todos' | SpeakerPunctualityTrend)}
+                className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:border-[#295E9F] outline-none cursor-pointer"
+              >
+                <option value="Todos">Todos os Padrões</option>
+                <option value="pontual">Pontual</option>
+                <option value="estoura">Tende a Demorar</option>
+                <option value="adianta">Tende a Adiantar</option>
+                <option value="misto">Variável</option>
+              </select>
             </div>
 
             {/* Tabela/Lista de Publicadores */}
